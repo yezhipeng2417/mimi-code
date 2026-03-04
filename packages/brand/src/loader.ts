@@ -11,6 +11,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { BrandConfig } from './types.js';
+import { validateBrandConfig } from './schema.js';
 
 /**
  * Default brand configuration (vanilla Mimi).
@@ -53,19 +54,30 @@ export class BrandLoader {
     for (const candidate of candidates) {
       try {
         const raw = await fs.readFile(candidate, 'utf-8');
-        const parsed = JSON.parse(raw) as BrandConfig;
+        const json = JSON.parse(raw) as unknown;
+
+        // Validate with Zod schema
+        const validated = validateBrandConfig(json);
 
         // Merge with defaults
         this.brand = {
           ...DEFAULT_BRAND,
-          ...parsed,
-          prompt: parsed.prompt ? { ...parsed.prompt } : undefined,
-          theme: parsed.theme ? { ...parsed.theme } : undefined,
-        };
+          ...validated,
+          prompt: validated.prompt ? { ...validated.prompt } : undefined,
+          theme: validated.theme ? { ...validated.theme } : undefined,
+        } as BrandConfig;
 
         return this.brand;
-      } catch {
-        // File doesn't exist or invalid — try next
+      } catch (err) {
+        // If file simply doesn't exist, try next candidate
+        if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+          continue;
+        }
+        // If JSON parse error or validation error on an explicit path, re-throw
+        if (candidate === options?.explicitPath) {
+          throw new Error(`Invalid brand.json at ${candidate}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        // Otherwise silently skip invalid files
         continue;
       }
     }

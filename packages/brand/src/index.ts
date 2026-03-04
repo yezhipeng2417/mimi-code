@@ -5,6 +5,8 @@
  */
 
 export { BrandLoader, DEFAULT_BRAND } from './loader.js';
+export { brandConfigSchema, validateBrandConfig } from './schema.js';
+export type { ValidatedBrandConfig } from './schema.js';
 export type {
   BrandConfig,
   BrandPromptConfig,

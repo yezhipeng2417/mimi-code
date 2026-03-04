@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@mimi/core": "workspace:*",
-    "@mimi/hooks": "workspace:*"
+    "@mimi/hooks": "workspace:*",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "tsup": "^8.0.2",
