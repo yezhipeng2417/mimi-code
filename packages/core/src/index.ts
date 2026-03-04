@@ -69,5 +69,14 @@ export {
   MemoryMonitor,
 } from './resource-manager.js';
 
+// Prompt Assembler
+export { PromptAssembler } from './prompt-assembler.js';
+export type {
+  PromptAssemblerConfig,
+  ProjectConfig,
+  SystemReminder,
+  AssembledRequest,
+} from './prompt-assembler.js';
+
 // DI Tokens
 export { Tokens } from './tokens.js';
