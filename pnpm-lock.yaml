@@ -60,6 +60,9 @@ importers:
       '@mimi/hooks':
         specifier: workspace:*
         version: link:../hooks
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^20.11.24
