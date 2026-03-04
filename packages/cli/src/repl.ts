@@ -22,15 +22,22 @@ export class Repl {
   private provider: LLMProvider | null = null;
   private agentLoop: AgentLoop | null = null;
 
-  constructor(setup: SetupResult) {
+  constructor(setup: SetupResult, resumeSessionId?: string) {
     this.setup = setup;
 
-    // Create a session
-    const session = setup.sessionStore.createSession(
-      process.cwd(),
-      setup.config.model,
-    );
-    this.sessionId = session.id;
+    if (resumeSessionId) {
+      // Resume existing session
+      this.sessionId = resumeSessionId;
+      this.messages = setup.sessionStore.getMessages(resumeSessionId);
+      setup.sessionStore.updateSession(resumeSessionId, { status: 'active' });
+    } else {
+      // Create a new session
+      const session = setup.sessionStore.createSession(
+        process.cwd(),
+        setup.config.model,
+      );
+      this.sessionId = session.id;
+    }
   }
 
   /**

@@ -55,9 +55,21 @@ program
       const version = program.version() ?? '0.1.0';
       process.stdout.write(hasColor ? banner(version) : bannerPlain(version));
 
+      // Resolve session ID for --continue
+      let resumeSessionId: string | undefined;
+      if (options.continue) {
+        const lastSession = setup.sessionStore.getLastSession(projectPath);
+        if (lastSession) {
+          resumeSessionId = lastSession.id;
+          process.stdout.write(`\x1b[90mResuming session: ${lastSession.title} (${lastSession.id.slice(0, 8)}...)\x1b[0m\n`);
+        } else {
+          process.stdout.write('\x1b[33mNo previous session found. Starting new session.\x1b[0m\n');
+        }
+      }
+
       if (prompt) {
         // One-shot mode
-        const repl = new Repl(setup);
+        const repl = new Repl(setup, resumeSessionId);
         await repl.handleOneShot(prompt);
 
         // Cleanup
@@ -66,7 +78,7 @@ program
         setup.eventBus.dispose();
       } else {
         // Interactive REPL mode
-        const repl = new Repl(setup);
+        const repl = new Repl(setup, resumeSessionId);
 
         // Handle graceful shutdown
         process.on('SIGINT', () => {
