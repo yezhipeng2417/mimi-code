@@ -11,6 +11,7 @@ import type { PermissionPrompt } from '@mimi/core';
 import type { SetupResult } from './container-setup.js';
 import { ToolBridge } from './tool-bridge.js';
 import { AnthropicProvider } from './anthropic-provider.js';
+import { promptIcon, promptIconPlain } from '@mimi/brand';
 
 export class Repl {
   private setup: SetupResult;
@@ -66,7 +67,8 @@ export class Repl {
 
     // Main loop
     while (this.running) {
-      const input = await this.prompt('❯ ');
+      const icon = process.stdout.isTTY ? promptIcon() : promptIconPlain();
+      const input = await this.prompt(`${icon} `);
       if (input === null) break; // EOF
 
       const trimmed = input.trim();
@@ -83,6 +85,15 @@ export class Repl {
     }
 
     this.cleanup();
+  }
+
+  /**
+   * Handle a one-shot prompt (non-interactive).
+   */
+  async handleOneShot(prompt: string): Promise<void> {
+    this.initProvider();
+    this.setupStreamHandlers();
+    await this.handleUserMessage(prompt);
   }
 
   /**
