@@ -12,4 +12,7 @@ export { Repl } from './repl.js';
 export { AnthropicProvider } from './anthropic-provider.js';
 export type { AnthropicProviderConfig } from './anthropic-provider.js';
 
+export { ToolBridge } from './tool-bridge.js';
+export type { ToolBridgeConfig } from './tool-bridge.js';
+
 export { loadConfig, loadProjectInstructions, loadMcpServers } from './config.js';

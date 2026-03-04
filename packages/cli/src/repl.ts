@@ -5,8 +5,12 @@
  */
 
 import * as readline from 'node:readline';
-import type { Message } from '@mimi/core';
+import { AgentLoop, Tokens } from '@mimi/core';
+import type { LLMProvider, Message } from '@mimi/core';
+import type { PermissionPrompt } from '@mimi/core';
 import type { SetupResult } from './container-setup.js';
+import { ToolBridge } from './tool-bridge.js';
+import { AnthropicProvider } from './anthropic-provider.js';
 
 export class Repl {
   private setup: SetupResult;
@@ -14,6 +18,8 @@ export class Repl {
   private rl: readline.Interface | null = null;
   private sessionId: string;
   private running = false;
+  private provider: LLMProvider | null = null;
+  private agentLoop: AgentLoop | null = null;
 
   constructor(setup: SetupResult) {
     this.setup = setup;
@@ -37,9 +43,16 @@ export class Repl {
       output: process.stdout,
     });
 
+    // Initialize provider
+    this.initProvider();
+
     // Display welcome
     const welcome = this.setup.brand.welcomeMessage ?? `Welcome to ${this.setup.brand.name}!`;
     process.stdout.write(`\n${welcome}\n\n`);
+
+    if (!this.provider) {
+      process.stdout.write('⚠ No API key found. Set ANTHROPIC_API_KEY to enable AI responses.\n\n');
+    }
 
     // Display available skills
     const skills = this.setup.skillLoader.listUserInvocable();
@@ -47,6 +60,9 @@ export class Repl {
       const skillList = skills.map((s) => `  /${s.name}`).join('\n');
       process.stdout.write(`Available commands:\n${skillList}\n  /help\n  /quit\n\n`);
     }
+
+    // Subscribe to stream events for terminal output
+    this.setupStreamHandlers();
 
     // Main loop
     while (this.running) {
@@ -74,40 +90,120 @@ export class Repl {
    */
   stop(): void {
     this.running = false;
+    if (this.agentLoop) {
+      this.agentLoop.cancel();
+    }
     this.rl?.close();
   }
 
   // ── Private ─────────────────────────────────────────────────────────
 
+  private initProvider(): void {
+    const apiKey = process.env['ANTHROPIC_API_KEY'];
+    if (!apiKey) return;
+
+    this.provider = new AnthropicProvider({
+      apiKey,
+      defaultModel: this.setup.config.model,
+    });
+  }
+
+  private setupStreamHandlers(): void {
+    const { eventBus } = this.setup;
+
+    // Print text deltas as they stream in
+    eventBus.on('stream:delta', ({ text }) => {
+      process.stdout.write(text);
+    });
+
+    // Print newline when stream ends
+    eventBus.on('stream:stop', () => {
+      process.stdout.write('\n\n');
+    });
+
+    // Tool execution status
+    eventBus.on('tool:start', ({ toolName }) => {
+      process.stdout.write(`\x1b[90m⚙ ${toolName}...\x1b[0m\n`);
+    });
+
+    eventBus.on('tool:end', ({ toolName, durationMs }) => {
+      process.stdout.write(`\x1b[90m✓ ${toolName} (${durationMs}ms)\x1b[0m\n`);
+    });
+
+    eventBus.on('tool:error', ({ toolName, error }) => {
+      process.stderr.write(`\x1b[31m✗ ${toolName}: ${error.message}\x1b[0m\n`);
+    });
+
+    eventBus.on('tool:permission', ({ toolName }) => {
+      process.stdout.write(`\x1b[33m🔒 ${toolName} requires permission\x1b[0m\n`);
+    });
+  }
+
   private async handleUserMessage(text: string): Promise<void> {
-    // Add user message
-    const userMessage: Message = {
-      role: 'user',
-      content: [{ type: 'text', text }],
-    };
-    this.messages.push(userMessage);
-    this.setup.sessionStore.saveMessage(this.sessionId, userMessage);
+    if (!this.provider) {
+      process.stdout.write('\n⚠ No provider connected. Set ANTHROPIC_API_KEY.\n\n');
+      return;
+    }
 
     // Run agent loop
     try {
       process.stdout.write('\n');
 
-      // Build the prompt and stream
-      const assembled = this.setup.promptAssembler.build(this.messages);
+      // Create tool bridge
+      const toolBridge = new ToolBridge({
+        registry: this.setup.toolRegistry,
+        executor: this.setup.toolExecutor,
+        permissionEngine: this.setup.permissionEngine,
+        eventBus: this.setup.eventBus,
+        resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+        workingDirectory: process.cwd(),
+        sessionId: this.sessionId,
+      });
 
-      // For now, output a placeholder since we need a provider implementation
-      // The actual streaming will use AgentLoop.run() when a provider is connected
-      process.stdout.write(`[${this.setup.config.model}] Processing with ${assembled.meta.toolCount} tools...\n`);
-      process.stdout.write('(Provider not yet connected. Connect an Anthropic API key to enable responses.)\n\n');
+      // Create permission prompt (simple stdin-based)
+      const permissionPrompt: PermissionPrompt = {
+        ask: async (toolName: string, input: unknown) => {
+          const inputStr = typeof input === 'object'
+            ? JSON.stringify(input, null, 2).slice(0, 200)
+            : String(input);
+          const answer = await this.prompt(
+            `\x1b[33mAllow ${toolName}?\x1b[0m ${inputStr}\n(y/n) `,
+          );
+          return {
+            allowed: answer?.toLowerCase().startsWith('y') ?? false,
+            persist: false,
+          };
+        },
+      };
 
-      // In a real implementation, this would be:
-      // const loop = new AgentLoop({ ... });
-      // const assistantMessage = await loop.run(userMessage);
-      // this.messages.push(assistantMessage);
+      // Create agent loop
+      this.agentLoop = new AgentLoop({
+        provider: this.provider,
+        assembler: this.setup.promptAssembler,
+        sessionStore: this.setup.sessionStore,
+        eventBus: this.setup.eventBus,
+        resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+        toolExecutor: toolBridge,
+        permissionPrompt,
+        sessionId: this.sessionId,
+      });
 
+      // Load existing messages
+      if (this.messages.length > 0) {
+        this.agentLoop.loadMessages(this.messages);
+      }
+
+      // Run and collect new messages
+      const newMessages = await this.agentLoop.run(text);
+      this.messages.push(
+        { role: 'user', content: [{ type: 'text', text }] },
+        ...newMessages,
+      );
+
+      this.agentLoop = null;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`Error: ${message}\n\n`);
+      process.stderr.write(`\x1b[31mError: ${message}\x1b[0m\n\n`);
     }
   }
 
@@ -139,7 +235,13 @@ export class Repl {
         process.stdout.write(`Tools: ${toolNames.length}\n`);
         process.stdout.write(`MCP Servers: ${mcpStates.size}\n`);
         process.stdout.write(`Messages: ${this.messages.length}\n`);
-        process.stdout.write(`Session: ${this.sessionId}\n\n`);
+        process.stdout.write(`Session: ${this.sessionId}\n`);
+        if (this.provider) {
+          process.stdout.write(`Provider: ${this.provider.name}\n`);
+        } else {
+          process.stdout.write('Provider: not connected\n');
+        }
+        process.stdout.write('\n');
         break;
       }
 
