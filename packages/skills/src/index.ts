@@ -6,4 +6,5 @@
 
 export { SkillLoader } from './loader.js';
 export { SkillRunner } from './runner.js';
+export type { SkillRunnerContext } from './runner.js';
 export type { SkillDefinition, SkillSource, SkillRunResult } from './types.js';

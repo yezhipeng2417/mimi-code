@@ -159,8 +159,15 @@ export async function setupContainer(options: SetupOptions): Promise<SetupResult
   // ── 8. Skills ─────────────────────────────────────────────────────
 
   const skillLoader = new SkillLoader();
-  await skillLoader.loadAll(projectPath);
+  await skillLoader.loadAll(projectPath, {
+    brandSkillsDir: brand.skillsDir,
+  });
   const skillRunner = new SkillRunner(skillLoader);
+  skillRunner.setContext({
+    cwd: projectPath,
+    model: config.model,
+    projectPath,
+  });
 
   // ── 9. Agent orchestrator ─────────────────────────────────────────
 

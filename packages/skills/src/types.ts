@@ -35,7 +35,8 @@ export type SkillSource =
   | { type: 'builtin' }
   | { type: 'project'; path: string }
   | { type: 'plugin'; pluginName: string }
-  | { type: 'user'; path: string };
+  | { type: 'user'; path: string }
+  | { type: 'brand'; path: string };
 
 /**
  * Result of running a skill.

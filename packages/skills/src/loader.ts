@@ -93,37 +93,49 @@ export class SkillLoader {
 
   /**
    * Load skills from all standard locations.
+   * Discovery order (later sources override earlier):
+   *   1. User-level global skills
+   *   2. Project-level skills
+   *   3. Brand-provided skills (if brandSkillsDir is set)
    */
   async loadAll(
     projectPath: string,
-    userHome?: string,
+    options?: { userHome?: string; brandSkillsDir?: string },
   ): Promise<number> {
     let total = 0;
-    const home = userHome ?? process.env['HOME'] ?? process.env['USERPROFILE'] ?? '.';
+    const home = options?.userHome ?? process.env['HOME'] ?? process.env['USERPROFILE'] ?? '.';
 
-    // 1. Project-level (.mimi/skills/)
-    total += await this.loadFromDirectory(
-      path.join(projectPath, '.mimi', 'skills'),
-      { type: 'project', path: projectPath },
-    );
-
-    // 2. Project-level (.claude/commands/ — Claude Code compat)
-    total += await this.loadFromDirectory(
-      path.join(projectPath, '.claude', 'commands'),
-      { type: 'project', path: projectPath },
-    );
-
-    // 3. User-level (~/.mimi/skills/)
+    // 1. User-level (~/.mimi/skills/)
     total += await this.loadFromDirectory(
       path.join(home, '.mimi', 'skills'),
       { type: 'user', path: home },
     );
 
-    // 4. User-level (~/.claude/commands/ — Claude Code compat)
+    // 2. User-level (~/.claude/commands/ — Claude Code compat)
     total += await this.loadFromDirectory(
       path.join(home, '.claude', 'commands'),
       { type: 'user', path: home },
     );
+
+    // 3. Project-level (.mimi/skills/)
+    total += await this.loadFromDirectory(
+      path.join(projectPath, '.mimi', 'skills'),
+      { type: 'project', path: projectPath },
+    );
+
+    // 4. Project-level (.claude/commands/ — Claude Code compat)
+    total += await this.loadFromDirectory(
+      path.join(projectPath, '.claude', 'commands'),
+      { type: 'project', path: projectPath },
+    );
+
+    // 5. Brand-provided skills directory
+    if (options?.brandSkillsDir) {
+      total += await this.loadFromDirectory(
+        options.brandSkillsDir,
+        { type: 'brand', path: options.brandSkillsDir },
+      );
+    }
 
     return total;
   }
