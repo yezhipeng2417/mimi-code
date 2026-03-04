@@ -78,5 +78,8 @@ export type {
   AssembledRequest,
 } from './prompt-assembler.js';
 
+// Session Store
+export { SessionStore } from './session-store.js';
+
 // DI Tokens
 export { Tokens } from './tokens.js';
