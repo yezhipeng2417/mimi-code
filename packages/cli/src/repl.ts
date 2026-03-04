@@ -196,6 +196,7 @@ export class Repl {
         resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
         toolExecutor: toolBridge,
         permissionPrompt,
+        hookRunner: this.setup.hookRunner,
         sessionId: this.sessionId,
       });
 

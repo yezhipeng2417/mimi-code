@@ -6,6 +6,8 @@ import type { ResourceManager } from './resource-manager.js';
 import type {
   AgentState,
   ContentBlock,
+  HookEvent,
+  HookResult,
   Message,
   ToolResult,
   ToolUseBlock,
@@ -23,6 +25,18 @@ export interface PermissionPrompt {
   ask(toolName: string, input: unknown): Promise<{ allowed: boolean; persist: boolean }>;
 }
 
+// Hook runner interface (implemented by @mimi/hooks package)
+export interface HookRunnerLike {
+  fire(event: HookEvent, context: {
+    event: HookEvent;
+    sessionId: string;
+    workingDirectory: string;
+    toolName?: string;
+    toolInput?: string;
+    toolOutput?: string;
+  }): Promise<HookResult>;
+}
+
 export interface AgentLoopConfig {
   provider: LLMProvider;
   assembler: PromptAssembler;
@@ -31,6 +45,7 @@ export interface AgentLoopConfig {
   resourceManager: ResourceManager;
   toolExecutor: ToolExecutor;
   permissionPrompt: PermissionPrompt;
+  hookRunner?: HookRunnerLike;
   sessionId: string;
   maxTurns?: number; // default 100, safety limit
   compactionThreshold?: number; // 0-1, default 0.6
@@ -239,22 +254,58 @@ export class AgentLoop {
             continue;
           }
 
+          // Fire PreToolUse hook
+          let toolInput = toolUse.input;
+          if (this.config.hookRunner) {
+            const hookResult = await this.config.hookRunner.fire('PreToolUse', {
+              event: 'PreToolUse',
+              sessionId: this.config.sessionId,
+              workingDirectory: process.cwd(),
+              toolName: toolUse.name,
+              toolInput: JSON.stringify(toolInput),
+            });
+            if (hookResult.action === 'block') {
+              toolResults.push({
+                type: 'tool_result',
+                toolUseId: toolUse.id,
+                content: [{ type: 'text', text: hookResult.message ?? 'Blocked by hook.' }],
+                isError: true,
+              });
+              continue;
+            }
+            if (hookResult.action === 'modify' && hookResult.modifiedInput) {
+              toolInput = hookResult.modifiedInput as Record<string, unknown>;
+            }
+          }
+
           // Execute
           this.setState('EXECUTING_TOOL');
           const startTime = Date.now();
           this.config.eventBus.emit('tool:start', {
             toolName: toolUse.name,
             toolUseId: toolUse.id,
-            input: toolUse.input,
+            input: toolInput,
           });
 
           let result: ToolResult;
           try {
             result = await this.config.toolExecutor.execute(
               toolUse.name,
-              toolUse.input,
+              toolInput,
               this.abortController.signal,
             );
+
+            // Fire PostToolUse hook
+            if (this.config.hookRunner) {
+              await this.config.hookRunner.fire('PostToolUse', {
+                event: 'PostToolUse',
+                sessionId: this.config.sessionId,
+                workingDirectory: process.cwd(),
+                toolName: toolUse.name,
+                toolInput: JSON.stringify(toolInput),
+                toolOutput: JSON.stringify(result.content).slice(0, 4096),
+              });
+            }
           } catch (error) {
             const errMsg = error instanceof Error ? error.message : String(error);
             result = {
@@ -265,6 +316,18 @@ export class AgentLoop {
               toolName: toolUse.name,
               error: error instanceof Error ? error : new Error(errMsg),
             });
+
+            // Fire PostToolUseFailure hook
+            if (this.config.hookRunner) {
+              await this.config.hookRunner.fire('PostToolUseFailure', {
+                event: 'PostToolUseFailure',
+                sessionId: this.config.sessionId,
+                workingDirectory: process.cwd(),
+                toolName: toolUse.name,
+                toolInput: JSON.stringify(toolInput),
+                toolOutput: errMsg,
+              });
+            }
           }
 
           const durationMs = Date.now() - startTime;
