@@ -25,4 +25,13 @@ export {
   DiffViewer,
   WelcomeBanner,
   TaskList,
+  MimiApp,
+} from './components/index.js';
+
+export type {
+  MimiAppProps,
+  DisplayMessage,
+  ToolCallInfo,
+  PermissionRequest,
+  AppState,
 } from './components/index.js';
