@@ -8,6 +8,10 @@
 export { defaultTheme, createTheme } from './theme.js';
 export type { Theme } from './theme.js';
 
+// Theme system
+export { resolveTheme } from './themes/resolver.js';
+export { builtinThemes } from './themes/builtin.js';
+
 // Components
 export {
   Spinner,
@@ -16,4 +20,9 @@ export {
   PermissionPrompt,
   StatusBar,
   StreamingText,
+  InputEditor,
+  ToolCallView,
+  DiffViewer,
+  WelcomeBanner,
+  TaskList,
 } from './components/index.js';

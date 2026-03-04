@@ -8,3 +8,8 @@ export { MessageBubble } from './MessageBubble.js';
 export { PermissionPrompt } from './PermissionPrompt.js';
 export { StatusBar } from './StatusBar.js';
 export { StreamingText } from './StreamingText.js';
+export { InputEditor } from './InputEditor.js';
+export { ToolCallView } from './ToolCallView.js';
+export { DiffViewer } from './DiffViewer.js';
+export { WelcomeBanner } from './WelcomeBanner.js';
+export { TaskList } from './TaskList.js';
