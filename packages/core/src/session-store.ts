@@ -198,6 +198,22 @@ export class SessionStore {
     this.db.prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`).run(...values);
   }
 
+  /**
+   * Get the most recently updated active session for a project.
+   */
+  getLastSession(projectPath: string): SessionInfo | undefined {
+    const row = this.db.prepare(`
+      SELECT id, project_path, title, model, created_at, updated_at,
+             token_count, cost_usd, status
+      FROM sessions
+      WHERE project_path = ? AND status IN ('active', 'completed')
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).get(projectPath) as SessionRow | undefined;
+
+    return row ? rowToSessionInfo(row) : undefined;
+  }
+
   deleteSession(id: string): void {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
