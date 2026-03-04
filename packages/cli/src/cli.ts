@@ -14,6 +14,7 @@
 import { Command } from 'commander';
 import { setupContainer } from './container-setup.js';
 import { Repl } from './repl.js';
+import { banner, bannerPlain, goodbye } from '@mimi/brand';
 
 const program = new Command();
 
@@ -49,10 +50,15 @@ program
         brandPath: options.brand,
       });
 
+      // Display banner
+      const hasColor = process.stdout.isTTY && !process.env['NO_COLOR'];
+      const version = program.version() ?? '0.1.0';
+      process.stdout.write(hasColor ? banner(version) : bannerPlain(version));
+
       if (prompt) {
-        // One-shot mode
-        process.stdout.write(`\n[One-shot mode] Processing: ${prompt}\n`);
-        process.stdout.write('(Provider integration pending. Connect an API key to enable.)\n\n');
+        // One-shot mode — create a REPL and handle single message
+        const repl = new Repl(setup);
+        await repl.handleOneShot(prompt);
 
         // Cleanup
         setup.sessionStore.close();
@@ -72,6 +78,9 @@ program
         });
 
         await repl.start();
+
+        // Goodbye
+        process.stdout.write(goodbye());
 
         // Cleanup
         setup.sessionStore.close();

@@ -11,3 +11,18 @@ export type {
   BrandThemeConfig,
   BrandPermissionConfig,
 } from './types.js';
+
+export {
+  banner,
+  bannerPlain,
+  promptIcon,
+  promptIconPlain,
+  faceSuccess,
+  faceError,
+  faceWarning,
+  faceWaiting,
+  spinnerFrames,
+  parrotLarge,
+  goodbye,
+  welcomeBack,
+} from './banner.js';
