@@ -405,21 +405,66 @@ export class AgentLoop {
     this.config.eventBus.emit('agent:state_change', { from, to: newState });
   }
 
+  /**
+   * Compact conversation history to fit within context budget.
+   *
+   * Strategy:
+   *   1. Anchored messages (project config, pinned context) are NEVER compacted
+   *   2. Dynamic split: keep enough recent turns to fill ~30% of context
+   *   3. Summarize old messages via LLM (reuses cache prefix)
+   *   4. Track actual token savings
+   */
   private async compact(): Promise<void> {
-    const recentCount = 10;
-    if (this.messages.length <= recentCount * 2) return;
+    // Dynamic split: keep recent messages up to 30% of context budget
+    const contextBudget = 200_000;
+    const recentBudget = contextBudget * 0.3;
 
-    const splitIdx = this.messages.length - recentCount * 2;
+    // Count tokens from the end to find the split point
+    let recentTokens = 0;
+    let splitIdx = this.messages.length;
+
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const msg = this.messages[i]!;
+      // Rough estimate: 4 chars per token across all content blocks
+      const msgTokens = msg.content.reduce((sum, block) => {
+        if (block.type === 'text') return sum + Math.ceil(block.text.length / 4);
+        if (block.type === 'tool_use') return sum + Math.ceil(JSON.stringify(block.input).length / 4);
+        if (block.type === 'tool_result') {
+          return sum + block.content.reduce((s, c) => s + ('text' in c ? Math.ceil(c.text.length / 4) : 100), 0);
+        }
+        return sum + 50; // thinking blocks etc.
+      }, 0);
+
+      if (recentTokens + msgTokens > recentBudget) {
+        splitIdx = i + 1;
+        break;
+      }
+      recentTokens += msgTokens;
+    }
+
+    // Need at least 4 messages in "old" to justify compaction
+    if (splitIdx < 4) return;
+
     const oldMessages = this.messages.slice(0, splitIdx);
     const recentMessages = this.messages.slice(splitIdx);
 
-    // Keep anchored messages
+    // Separate protected anchors from compactable messages
     const anchors = oldMessages.filter((m) => m.metadata?.anchor);
-    const compactable = oldMessages.filter((m) => !m.metadata?.anchor);
+    const compactable = oldMessages.filter((m) => !m.metadata?.anchor && !m.metadata?.compactionSummary);
+
+    if (compactable.length < 2) return;
+
+    // Estimate tokens before compaction
+    const preCompactionTokens = compactable.reduce((sum, msg) => {
+      return sum + msg.content.reduce((s, block) => {
+        if (block.type === 'text') return s + Math.ceil(block.text.length / 4);
+        return s + 50;
+      }, 0);
+    }, 0);
 
     this.config.eventBus.emit('compaction:start', {
       messageCount: compactable.length,
-      tokenCount: 0,
+      tokenCount: preCompactionTokens,
     });
 
     // Build compaction request (reuses same cache prefix)
@@ -433,7 +478,10 @@ export class AgentLoop {
       }
     }
 
-    // Reconstruct message array
+    // Estimate tokens after compaction
+    const postCompactionTokens = Math.ceil(summaryText.length / 4) + 50; // +50 for wrapper
+
+    // Reconstruct message array: summary → anchors → recent
     this.messages = [
       {
         role: 'user',
@@ -448,9 +496,13 @@ export class AgentLoop {
       ...recentMessages,
     ];
 
+    const savedTokens = Math.max(0, preCompactionTokens - postCompactionTokens);
+
     this.config.eventBus.emit('compaction:end', {
       removedMessages: compactable.length,
-      savedTokens: 0,
+      savedTokens,
+      retainedAnchors: anchors.length,
+      newMessageCount: this.messages.length,
     });
   }
 }
