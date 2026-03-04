@@ -7,3 +7,6 @@ dist/
 .env.*
 coverage/
 .turbo/
+.mimi/
+*.db
+*.db-journal

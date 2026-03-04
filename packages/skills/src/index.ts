@@ -1,0 +1,1 @@
+// @mimi/skills — placeholder
