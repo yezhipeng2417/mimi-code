@@ -88,3 +88,9 @@ export interface ActiveAgent {
   startedAt: number;
   result?: AgentResult;
 }
+
+/**
+ * Callback for actually running a sub-agent.
+ * Provided by the CLI layer which has access to provider, assembler, etc.
+ */
+export type AgentRunFn = (request: SpawnRequest & { agentId: string; typeConfig: AgentTypeConfig }) => Promise<AgentResult>;

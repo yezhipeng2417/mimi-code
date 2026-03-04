@@ -10,4 +10,5 @@ export type {
   SpawnRequest,
   AgentResult,
   ActiveAgent,
+  AgentRunFn,
 } from './types.js';
