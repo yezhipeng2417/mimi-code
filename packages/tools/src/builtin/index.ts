@@ -14,6 +14,7 @@ export { globTool } from './glob.js';
 export { grepTool } from './grep.js';
 export { bashTool } from './bash.js';
 export { notebookEditTool } from './notebook-edit.js';
+export { todoWriteTool, getTodoList } from './todo.js';
 
 // Factory-created tools (require dependencies)
 export { createToolSearchTool } from './tool-search.js';
@@ -28,6 +29,7 @@ import { globTool } from './glob.js';
 import { grepTool } from './grep.js';
 import { bashTool } from './bash.js';
 import { notebookEditTool } from './notebook-edit.js';
+import { todoWriteTool } from './todo.js';
 import type { Tool } from '../types.js';
 
 /**
@@ -43,5 +45,6 @@ export function getBuiltinTools(): Tool[] {
     grepTool,
     bashTool,
     notebookEditTool,
+    todoWriteTool,
   ];
 }
