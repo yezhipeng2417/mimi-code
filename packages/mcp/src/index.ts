@@ -14,6 +14,8 @@ export type {
 
 // Transport
 export { StdioTransport } from './transport.js';
+export { SseTransport } from './sse-transport.js';
+export type { SseTransportOptions } from './sse-transport.js';
 export type {
   McpTransport,
   JsonRpcRequest,

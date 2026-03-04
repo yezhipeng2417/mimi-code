@@ -7,6 +7,7 @@
 import type { McpServerConfig, ToolSource } from '@mimi/core';
 import type { JsonRpcNotification, McpTransport } from './transport.js';
 import { StdioTransport } from './transport.js';
+import { SseTransport } from './sse-transport.js';
 
 /**
  * MCP tool definition from server.
@@ -84,8 +85,10 @@ export class McpClient {
           state.config.env,
         );
       } else if (state.config.url) {
-        // SSE transport would go here — for now, only stdio is supported
-        throw new Error('SSE transport not yet implemented. Use stdio transport.');
+        state.transport = new SseTransport({
+          url: state.config.url,
+          headers: state.config.headers,
+        });
       } else {
         throw new Error(`No command or url specified for MCP server "${name}"`);
       }
