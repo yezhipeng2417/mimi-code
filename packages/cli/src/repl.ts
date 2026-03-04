@@ -124,6 +124,94 @@ export class Repl {
       apiKey,
       defaultModel: this.setup.config.model,
     });
+
+    // Wire agent orchestrator with the ability to run sub-agents
+    this.setup.agentOrchestrator.setRunFn(async (request) => {
+      if (!this.provider) {
+        throw new Error('No provider available for sub-agent');
+      }
+
+      const startTime = Date.now();
+
+      // Create a child session for the sub-agent
+      const childSession = this.setup.sessionStore.createSession(
+        process.cwd(),
+        request.model ?? request.typeConfig.model ?? this.setup.config.model,
+        `Sub-agent: ${request.type}`,
+      );
+
+      // Create a child prompt assembler with the agent's system prompt
+      const childAssembler = new (await import('@mimi/core')).PromptAssembler({
+        coreSystemPrompt: request.typeConfig.systemPrompt,
+        defaultModel: request.model ?? request.typeConfig.model ?? this.setup.config.model,
+        defaultMaxTokens: this.setup.config.maxTokens,
+      });
+
+      // Freeze tools for child assembler
+      const toolSchemas = await this.setup.toolRegistry.listToolSchemas();
+      childAssembler.freezeTools(toolSchemas);
+
+      // Create tool bridge for the sub-agent
+      const toolBridge = new ToolBridge({
+        registry: this.setup.toolRegistry,
+        executor: this.setup.toolExecutor,
+        permissionEngine: this.setup.permissionEngine,
+        eventBus: this.setup.eventBus,
+        resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+        workingDirectory: process.cwd(),
+        sessionId: childSession.id,
+      });
+
+      // Create permission prompt that auto-denies for sub-agents
+      const childPermission: PermissionPrompt = {
+        ask: async () => ({ allowed: false, persist: false }),
+      };
+
+      // Create child agent loop
+      const childLoop = new AgentLoop({
+        provider: this.provider,
+        assembler: childAssembler,
+        sessionStore: this.setup.sessionStore,
+        eventBus: this.setup.eventBus,
+        resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+        toolExecutor: toolBridge,
+        permissionPrompt: childPermission,
+        hookRunner: this.setup.hookRunner,
+        sessionId: childSession.id,
+        maxTurns: request.maxTurns ?? request.typeConfig.maxTurns ?? 30,
+      });
+
+      try {
+        const messages = await childLoop.run(request.prompt);
+
+        // Extract final text response
+        const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
+        const responseText = lastAssistant?.content
+          .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n') ?? '';
+
+        return {
+          agentId: request.agentId,
+          type: request.type,
+          response: responseText,
+          success: true,
+          totalTokens: 0,
+          durationMs: Date.now() - startTime,
+        };
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return {
+          agentId: request.agentId,
+          type: request.type,
+          response: `Agent error: ${errMsg}`,
+          success: false,
+          totalTokens: 0,
+          durationMs: Date.now() - startTime,
+          error: errMsg,
+        };
+      }
+    });
   }
 
   private setupStreamHandlers(): void {

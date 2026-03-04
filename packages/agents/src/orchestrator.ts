@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { EventBusLike } from '@mimi/core';
-import type { ActiveAgent, AgentResult, AgentTypeConfig, SpawnRequest } from './types.js';
+import type { ActiveAgent, AgentResult, AgentRunFn, AgentTypeConfig, SpawnRequest } from './types.js';
 
 /**
  * Default agent types matching Claude Code's agent system.
@@ -42,6 +42,7 @@ export class AgentOrchestrator {
   private agentTypes = new Map<string, AgentTypeConfig>();
   private activeAgents = new Map<string, ActiveAgent>();
   private eventBus?: EventBusLike;
+  private runFn?: AgentRunFn;
 
   constructor(eventBus?: EventBusLike) {
     this.eventBus = eventBus;
@@ -50,6 +51,13 @@ export class AgentOrchestrator {
     for (const type of DEFAULT_AGENT_TYPES) {
       this.agentTypes.set(type.name, type);
     }
+  }
+
+  /**
+   * Set the runner callback (provided by CLI layer with access to provider/assembler).
+   */
+  setRunFn(fn: AgentRunFn): void {
+    this.runFn = fn;
   }
 
   /**
@@ -75,6 +83,10 @@ export class AgentOrchestrator {
       );
     }
 
+    if (!this.runFn) {
+      throw new Error('Agent runner not configured. Call setRunFn() first.');
+    }
+
     const agentId = randomUUID();
 
     const agent: ActiveAgent = {
@@ -91,6 +103,31 @@ export class AgentOrchestrator {
       from: 'IDLE',
       to: 'ASSEMBLING',
     });
+
+    // Run the agent (fire-and-forget for background, awaited for foreground)
+    const runPromise = this.runFn({
+      ...request,
+      agentId,
+      typeConfig,
+    }).then((result) => {
+      this.completeAgent(agentId, result);
+      return result;
+    }).catch((error) => {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.completeAgent(agentId, {
+        agentId,
+        type: request.type,
+        response: `Agent failed: ${errMsg}`,
+        success: false,
+        totalTokens: 0,
+        durationMs: Date.now() - agent.startedAt,
+        error: errMsg,
+      });
+    });
+
+    if (!request.background) {
+      await runPromise;
+    }
 
     return agentId;
   }
