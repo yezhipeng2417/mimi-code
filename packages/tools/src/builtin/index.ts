@@ -20,6 +20,7 @@ export { todoWriteTool, getTodoList } from './todo.js';
 export { createToolSearchTool } from './tool-search.js';
 export { createAskUserTool } from './ask-user.js';
 export type { AskUserCallback } from './ask-user.js';
+export { createSpawnAgentTool } from './spawn-agent.js';
 
 // All built-in tools for bulk registration
 import { readTool } from './read.js';
