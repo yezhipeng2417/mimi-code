@@ -81,5 +81,13 @@ export type {
 // Session Store
 export { SessionStore } from './session-store.js';
 
+// Provider
+export type { LLMProvider } from './provider.js';
+export { StreamNormalizer } from './provider.js';
+
+// Agent Loop
+export { AgentLoop } from './agent-loop.js';
+export type { ToolExecutor, PermissionPrompt, AgentLoopConfig } from './agent-loop.js';
+
 // DI Tokens
 export { Tokens } from './tokens.js';
