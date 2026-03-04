@@ -19,7 +19,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@mimi/core": "workspace:*"
+    "@mimi/core": "workspace:*",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "tsup": "^8.0.2",
