@@ -56,13 +56,14 @@ program
       process.stdout.write(hasColor ? banner(version) : bannerPlain(version));
 
       if (prompt) {
-        // One-shot mode — create a REPL and handle single message
+        // One-shot mode
         const repl = new Repl(setup);
         await repl.handleOneShot(prompt);
 
         // Cleanup
         setup.sessionStore.close();
         await setup.mcpClient.dispose();
+        setup.eventBus.dispose();
       } else {
         // Interactive REPL mode
         const repl = new Repl(setup);
