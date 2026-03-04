@@ -22,7 +22,7 @@ import { AgentOrchestrator } from '@mimi/agents';
 import { BrandLoader } from '@mimi/brand';
 import type { BrandConfig } from '@mimi/brand';
 
-import { loadConfig, loadProjectInstructions, loadMcpServers } from './config.js';
+import { loadConfig, loadProjectInstructions, loadMcpServers, loadHooks } from './config.js';
 
 export interface SetupOptions {
   projectPath: string;
@@ -143,7 +143,18 @@ export async function setupContainer(options: SetupOptions): Promise<SetupResult
 
   // ── 7. Hooks ──────────────────────────────────────────────────────
 
-  const hookRunner = new HookRunner([], eventBus);
+  // Load hooks from config files
+  const hookConfigs = await loadHooks(projectPath);
+  const hookRunner = new HookRunner(
+    hookConfigs.map((h) => ({
+      event: h.event as import('@mimi/core').HookEvent,
+      command: h.command,
+      toolName: h.toolName,
+      timeout: h.timeout,
+      blocking: h.blocking,
+    })),
+    eventBus,
+  );
 
   // ── 8. Skills ─────────────────────────────────────────────────────
 
