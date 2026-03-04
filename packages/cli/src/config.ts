@@ -132,6 +132,54 @@ export async function loadMcpServers(
   return servers;
 }
 
+/**
+ * Load hook configurations from .mimi/hooks.json or .claude/settings.json hooks section.
+ *
+ * hooks.json format:
+ * {
+ *   "hooks": {
+ *     "PreToolUse": [{ "command": "...", "toolName": "Bash", "blocking": true }],
+ *     "PostToolUse": [{ "command": "..." }]
+ *   }
+ * }
+ */
+export async function loadHooks(
+  projectPath: string,
+  userHome?: string,
+): Promise<Array<{ event: string; command: string; toolName?: string; timeout?: number; blocking?: boolean }>> {
+  const home = userHome ?? process.env['HOME'] ?? process.env['USERPROFILE'] ?? '.';
+  const hooks: Array<{ event: string; command: string; toolName?: string; timeout?: number; blocking?: boolean }> = [];
+
+  // Load from multiple sources (project overrides user)
+  const sources = [
+    path.join(home, '.mimi', 'hooks.json'),
+    path.join(projectPath, '.mimi', 'hooks.json'),
+    path.join(projectPath, '.claude', 'settings.json'),
+  ];
+
+  for (const source of sources) {
+    const data = await tryLoadJson<{
+      hooks?: Record<string, Array<{ command: string; toolName?: string; timeout?: number; blocking?: boolean }>>;
+    }>(source);
+
+    if (data?.hooks) {
+      for (const [event, eventHooks] of Object.entries(data.hooks)) {
+        for (const hook of eventHooks) {
+          hooks.push({
+            event,
+            command: hook.command,
+            toolName: hook.toolName,
+            timeout: hook.timeout,
+            blocking: hook.blocking,
+          });
+        }
+      }
+    }
+  }
+
+  return hooks;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 async function tryLoadJson<T>(filePath: string): Promise<T | undefined> {
