@@ -55,6 +55,10 @@ export class AgentLoop {
     return this.turnCount;
   }
 
+  get allMessages(): ReadonlyArray<Message> {
+    return this.messages;
+  }
+
   /**
    * Run the agent loop for a single user message.
    * Returns when the agent produces a final response (no more tool calls).
@@ -97,6 +101,7 @@ export class AgentLoop {
         this.abortController = new AbortController();
 
         const assistantContent: ContentBlock[] = [];
+        const jsonBuffers = new Map<number, string>(); // index → partial JSON for tool_use
         let stopReason = 'end_turn';
         let usage: UsageInfo | undefined;
 
@@ -113,19 +118,44 @@ export class AgentLoop {
             case 'content_block_start':
               assistantContent.push(event.contentBlock);
               break;
-            case 'content_block_delta':
-              if (event.delta.type === 'text_delta') {
+            case 'content_block_delta': {
+              const delta = event.delta;
+              if (delta.type === 'text_delta') {
                 this.config.eventBus.emit('stream:delta', {
                   index: event.index,
-                  text: event.delta.text,
+                  text: delta.text,
                 });
-                // Update the last content block in-place
                 const block = assistantContent[event.index];
                 if (block && block.type === 'text') {
-                  block.text += event.delta.text;
+                  block.text += delta.text;
                 }
+              } else if (delta.type === 'thinking_delta') {
+                const block = assistantContent[event.index];
+                if (block && block.type === 'thinking') {
+                  block.thinking += delta.thinking;
+                }
+              } else if (delta.type === 'input_json_delta') {
+                const existing = jsonBuffers.get(event.index) ?? '';
+                jsonBuffers.set(event.index, existing + delta.partialJson);
               }
               break;
+            }
+            case 'content_block_stop': {
+              // Parse accumulated tool input JSON
+              const jsonStr = jsonBuffers.get(event.index);
+              if (jsonStr) {
+                const block = assistantContent[event.index];
+                if (block && block.type === 'tool_use') {
+                  try {
+                    block.input = JSON.parse(jsonStr) as Record<string, unknown>;
+                  } catch {
+                    block.input = { _raw: jsonStr };
+                  }
+                }
+                jsonBuffers.delete(event.index);
+              }
+              break;
+            }
             case 'message_delta':
               stopReason = event.stopReason;
               usage = event.usage;

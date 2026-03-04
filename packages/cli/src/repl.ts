@@ -199,17 +199,16 @@ export class Repl {
         sessionId: this.sessionId,
       });
 
-      // Load existing messages
+      // Load existing messages into agent loop
       if (this.messages.length > 0) {
         this.agentLoop.loadMessages(this.messages);
       }
 
-      // Run and collect new messages
-      const newMessages = await this.agentLoop.run(text);
-      this.messages.push(
-        { role: 'user', content: [{ type: 'text', text }] },
-        ...newMessages,
-      );
+      // Run agent loop — it internally manages user + assistant messages
+      await this.agentLoop.run(text);
+
+      // Sync messages from agent loop (single source of truth)
+      this.messages = [...this.agentLoop.allMessages];
 
       this.agentLoop = null;
     } catch (err: unknown) {
