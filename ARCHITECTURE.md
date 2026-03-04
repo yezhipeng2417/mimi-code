@@ -372,11 +372,13 @@ Step 4: CONTEXT CHECK
     summarize oldest turns (see Section 2.3)
     |
     v
-Step 5: PROMPT ASSEMBLY
-  PromptAssembler.build() composes:
-    [brand.prepend] + [core system] + [brand.append] +
-    [CLAUDE.md/MIMI.md] + [MCP instructions] + [reminders]
-  ToolRegistry.getActiveSchemas() returns tool JSON schemas
+Step 5: PROMPT ASSEMBLY (cache-optimized, see Section 2.4)
+  PromptAssembler.build() composes in strict cache order:
+    system:   [core system + brand prepend/append]     ← STATIC, globally cached
+    tools:    [frozen tool schemas, sorted]             ← STATIC, session-frozen
+    messages: [project config as msg] + [conversation]  ← prefix-cached per turn
+              + [system-reminders in latest user msg]   ← dynamic, uncached
+  Tool schemas frozen at session start. Dynamic info in system-reminders only.
     |
     v
 Step 6: API CALL
@@ -505,7 +507,200 @@ Critical trigger:   usage > 90%, force-compact with aggressive settings
 Emergency trigger:  usage > 95%, drop old tool results entirely (never deadlock)
 ```
 
-### 2.4 Session Management with SQLite
+### 2.4 Prompt Caching Architecture
+
+> "You fundamentally have to design agents for prompt caching first,
+>  almost every feature touches on it somehow."
+> — Thariq Shihipar, Claude Code engineer
+
+Prompt caching is the single most important cost and latency optimization. The Anthropic API caches via **prefix matching** — content is cached from request start through each `cache_control` breakpoint. Any change in the prefix invalidates ALL subsequent cache. This shapes every architectural decision.
+
+#### 2.4.1 Cache-Optimized Request Layout
+
+The API request body MUST maintain this exact ordering — **static first, dynamic last**:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  LAYER 1: STATIC SYSTEM PROMPT          [cache_control: eph] │
+│  (Core agent behavior, safety rules, tool instructions)      │
+│  → Shared across ALL users, ALL sessions                     │
+│  → NEVER modified mid-session                                │
+├──────────────────────────────────────────────────────────────┤
+│  LAYER 2: TOOL DEFINITIONS              [cache_control: eph] │
+│  (JSON schemas for all registered tools)                     │
+│  → Stable within a session — NEVER add/remove tools          │
+│  → MCP tools use defer_loading stubs (see 2.4.3)            │
+├──────────────────────────────────────────────────────────────┤
+│  LAYER 3: BRAND + PROJECT CONFIG        [cache_control: eph] │
+│  (brand.json prepend/append + MIMI.md/CLAUDE.md)             │
+│  → Shared across sessions in the same project                │
+│  → Only changes when user edits MIMI.md                      │
+├──────────────────────────────────────────────────────────────┤
+│  LAYER 4: CONVERSATION MESSAGES         (no cache control)   │
+│  (User turns, assistant turns, tool results)                 │
+│  → Unique per session, grows each turn                       │
+│  → Previous turns cached via prefix matching                 │
+├──────────────────────────────────────────────────────────────┤
+│  LAYER 5: SYSTEM REMINDERS              (no cache control)   │
+│  (Current date, env info, context reminders, MCP reminders)  │
+│  → Injected as system-role messages WITHIN conversation      │
+│  → NEVER injected into system prompt (would break cache)     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Key invariants:
+- Layers 1-3 form the **cacheable prefix**. They MUST NOT change within a session.
+- Dynamic information (timestamps, git status, session state) goes into Layer 5 as system-reminder messages interleaved in the conversation, NOT in the system prompt.
+- Tool definitions (Layer 2) are frozen at session start. New MCP tools discovered mid-session are deferred until next session or loaded via ToolSearch.
+
+#### 2.4.2 Cache Breakpoint Strategy
+
+```typescript
+interface CacheBreakpoints {
+  // Place cache_control markers at layer boundaries
+  systemPromptEnd: CacheHint;     // After Layer 1
+  toolDefinitionsEnd: CacheHint;  // After Layer 2
+  projectConfigEnd: CacheHint;    // After Layer 3
+  // Layer 4+ has no explicit breakpoints — relies on prefix matching
+}
+
+// In PromptAssembler.build():
+function buildRequest(session: Session): APIRequest {
+  return {
+    system: [
+      { type: 'text', text: coreSystemPrompt, cache_control: { type: 'ephemeral' } },
+    ],
+    tools: [
+      ...frozenToolSchemas,  // frozen at session start
+      // Last tool gets cache_control
+      { ...lastTool, cache_control: { type: 'ephemeral' } },
+    ],
+    messages: [
+      // Brand + project instructions as first user message
+      { role: 'user', content: brandAndProjectInstructions, cache_control: { type: 'ephemeral' } },
+      { role: 'assistant', content: 'Understood.' },
+      // Conversation messages (prefix-cached automatically)
+      ...conversationMessages,
+      // Dynamic reminders injected into latest user message
+    ],
+  };
+}
+```
+
+#### 2.4.3 Deferred Tool Loading (defer_loading)
+
+Full MCP tool schemas can be thousands of tokens. Loading all of them into the tool definitions breaks cache and wastes tokens. Solution: **lightweight stubs + on-demand loading**.
+
+```typescript
+// At session start: register lightweight stubs
+interface DeferredToolStub {
+  name: string;
+  description: string;          // Short 1-line description
+  defer_loading: true;          // Flag: full schema not loaded
+  source: ToolSource;           // Which MCP server provides it
+  // inputSchema is OMITTED — model cannot call this directly
+}
+
+// When model calls ToolSearch:
+//   1. Return matching tool descriptions
+//   2. Load full schema for selected tools
+//   3. Inject full schema into NEXT turn's system-reminder
+//      (NOT into tool definitions — that would break cache)
+
+// ToolSearch is always available as a built-in tool:
+const toolSearchTool = {
+  name: 'ToolSearch',
+  description: 'Search for and load additional tools by name or capability',
+  inputSchema: z.object({
+    query: z.string().describe('Search query for tool name or capability'),
+  }),
+};
+```
+
+#### 2.4.4 Cache-Safe Compaction
+
+Standard summarization would create a new request with different system prompt → cache miss. Cache-safe compaction preserves the entire cacheable prefix:
+
+```
+BEFORE compaction (turn 50, 180K tokens):
+  [System prompt] [Tools] [Brand+MIMI.md] [Turn 1..50]
+
+AFTER compaction:
+  [System prompt] [Tools] [Brand+MIMI.md]   ← IDENTICAL prefix (cache HIT)
+  [Summary of turns 1..40]                    ← New summary message
+  [Turn 41..50]                               ← Recent turns preserved
+
+The compaction request itself is a separate API call:
+  [System prompt] [Tools] [Brand+MIMI.md]   ← Same prefix (cache HIT)
+  [Turn 1..40]                               ← Messages to summarize
+  [User: "Summarize the above conversation"] ← Compaction instruction
+```
+
+This ensures the compaction API call ALSO benefits from the cached prefix.
+
+#### 2.4.5 No Mid-Session Model Switching
+
+Switching from Opus to Haiku mid-session forces a complete cache rebuild (different model = different KV cache). At 100K+ tokens, rebuilding cache is MORE expensive than just using Opus.
+
+```typescript
+// WRONG: switch model mid-session
+provider.createMessage({ model: 'haiku', ... });  // Cache miss on 100K tokens!
+
+// RIGHT: spawn a subagent with its own session
+const subagent = agentLoop.spawnSubagent({
+  model: 'haiku',
+  task: 'Classify this error message',
+  context: extractRelevantContext(),  // Only pass what's needed
+});
+```
+
+Subagent sessions have their own cache prefix (much smaller), making Haiku cost-effective for lightweight tasks.
+
+#### 2.4.6 Cache Hit Rate Monitoring
+
+Cache miss rate is a **production-critical metric**. A few percentage points increase can multiply infrastructure costs.
+
+```typescript
+interface CacheMetrics {
+  // Per-turn metrics
+  cacheCreationInputTokens: number;  // Tokens that were NOT cached (miss)
+  cacheReadInputTokens: number;      // Tokens that WERE cached (hit)
+  inputTokens: number;               // Total input tokens
+
+  // Derived
+  cacheHitRate: number;              // cacheRead / (cacheRead + cacheCreation)
+}
+
+// In TelemetryService:
+function reportCacheMetrics(metrics: CacheMetrics): void {
+  // Log per-turn cache performance
+  telemetry.gauge('cache.hit_rate', metrics.cacheHitRate);
+  telemetry.counter('cache.read_tokens', metrics.cacheReadInputTokens);
+  telemetry.counter('cache.creation_tokens', metrics.cacheCreationInputTokens);
+
+  // Alert if hit rate drops
+  if (metrics.cacheHitRate < CACHE_HIT_RATE_THRESHOLD) {
+    telemetry.alert('cache_hit_rate_low', {
+      hitRate: metrics.cacheHitRate,
+      threshold: CACHE_HIT_RATE_THRESHOLD,
+      severity: metrics.cacheHitRate < 0.5 ? 'critical' : 'warning',
+    });
+  }
+}
+```
+
+#### 2.4.7 Cache-Hostile Anti-Patterns (AVOID)
+
+| Anti-Pattern | Why It Breaks Cache | Correct Approach |
+|---|---|---|
+| Timestamp in system prompt | Changes every turn → full prefix miss | Put timestamp in system-reminder message |
+| Non-deterministic tool ordering | Different order = different prefix | Sort tools alphabetically, freeze at session start |
+| Add/remove MCP tools mid-session | Tool definitions change → prefix miss | Use defer_loading stubs, ToolSearch for on-demand |
+| Model switching mid-session | Different model = different KV cache | Use subagents for different models |
+| Edit system prompt for plan mode | System prompt changes → prefix miss | Use EnterPlanMode/ExitPlanMode tools that toggle via system-reminder |
+| Inject MCP instructions into system prompt | Dynamic MCP content in prefix | Put MCP instructions in first user message or system-reminder |
+
+### 2.5 Session Management with SQLite
 
 ```
 Database: .mimi/sessions.db (per-project) + ~/.mimi/sessions.db (global)
@@ -736,7 +931,8 @@ http handler:
   Timeout configurable (default 10s).
 
 prompt handler:
-  Injects text into the system prompt for the current turn.
+  Injects text as a system-reminder in the NEXT user message.
+  (NEVER into the system prompt — that would break prompt cache.)
   The LLM evaluates the hook condition and decides action.
 
 agent handler:
@@ -744,7 +940,60 @@ agent handler:
   the event and produce a decision. Most powerful but slowest.
 ```
 
-### 3.5 Plugin Manifest and Lifecycle
+### 3.5 Tool Design Philosophy: Progressive Disclosure
+
+> "How do you design the tools of your agent? You want to give it
+>  tools that are shaped to its own abilities."
+> — Thariq Shihipar, "Seeing like an Agent"
+
+Key principles for tool design in Mimi Code:
+
+**1. Progressive Disclosure over Upfront Loading**
+
+Don't dump all context upfront. Let the agent incrementally discover relevant context through exploration.
+
+```
+❌ WRONG: Load all 200 MCP tool schemas into tool definitions (wastes tokens, breaks cache)
+✅ RIGHT: Register lightweight stubs → model calls ToolSearch → load full schema on demand
+
+❌ WRONG: Inject all project files into context at session start
+✅ RIGHT: Give agent Read/Glob/Grep tools → it discovers what it needs
+```
+
+**2. Structured Tools > Free-form Text**
+
+Structured tool outputs reduce friction and increase communication bandwidth between user and agent.
+
+```
+❌ WRONG: Agent asks questions in plain text (hard to parse, format varies)
+✅ RIGHT: Agent calls AskUserQuestion tool with structured options (modal, blocking, parseable)
+
+❌ WRONG: Agent outputs plan as free text
+✅ RIGHT: Agent calls EnterPlanMode tool, writes plan to file, calls ExitPlanMode
+```
+
+**3. Tools Evolve with Model Capabilities**
+
+As models improve, previously necessary tools may become constraints. Design tools to be replaceable.
+
+```
+Example evolution:
+  TodoWrite (simple reminder) → TaskCreate/TaskUpdate (multi-agent coordination)
+  Edit (single file) → MultiEdit (batch operations)
+  Bash grep → Grep tool (structured, sandboxed)
+```
+
+**4. Tools as State Machines, Not Prompt Modifications**
+
+Use tools to toggle agent state instead of modifying the system prompt (which breaks cache).
+
+```
+❌ WRONG: if (planMode) { systemPrompt += "You are in plan mode..." }
+✅ RIGHT: EnterPlanMode tool → injects plan-mode rules as system-reminder
+         ExitPlanMode tool → removes plan-mode rules from next turn's reminders
+```
+
+### 3.6 Plugin Manifest and Lifecycle
 
 ```typescript
 interface PluginManifest {
@@ -798,6 +1047,12 @@ Plugin discovery paths (in order):
 ---
 
 ## 4. Rendering Architecture
+
+> "Most people's mental model of Claude Code is that 'it's just a TUI'
+>  but it should really be closer to 'a small game engine'."
+> — Thariq Shihipar
+
+The rendering pipeline is a game-engine-style loop: React scene graph → Yoga layout → rasterize to 2D screen → diff against previous frame → generate ANSI patch sequences. Target: **~16ms frame budget** (~60fps), with ~5ms from React reconciliation to ANSI output.
 
 ### 4.1 The Flickering Problem
 
@@ -1112,44 +1367,51 @@ interface AuthProvider {
 
 ## 6. White-Label Architecture
 
-### 6.1 Prompt Injection Layers
+### 6.1 Prompt Injection Layers (Cache-Optimized)
 
-The system prompt is assembled in a strict order. White-label brands can prepend and append but never replace the core.
+The system prompt is assembled in a strict order optimized for **prompt caching** (see Section 2.4). White-label brands can prepend and append but never replace the core. The ordering follows the principle: **static first, dynamic last** — all content shared across users/sessions comes first to maximize cache hit rates.
 
 ```
- Assembly Order                 Source              Mutability
- +-----------------------------------------------------------------+
- |                                                                  |
- | 1. Brand Prepend             brand.json          Brand controls  |
- |    "You are AcmeCorp's AI coding assistant.                      |
- |     Always follow AcmeCorp coding standards."                    |
- |                                                                  |
- | 2. Core System Prompt        @mimi/core          IMMUTABLE       |
- |    (Agent behavior, safety, tool instructions)                   |
- |    This section CANNOT be overridden or removed.                 |
- |                                                                  |
- | 3. Brand Append              brand.json          Brand controls  |
- |    "Additional AcmeCorp rules:                                   |
- |     - Always use TypeScript strict mode                          |
- |     - Prefer functional patterns"                                |
- |                                                                  |
- | 4. Tool Descriptions         ToolRegistry        Dynamic        |
- |    (JSON schemas for all active tools)                           |
- |                                                                  |
- | 5. Project Instructions      MIMI.md / CLAUDE.md User controls  |
- |    (Per-project instructions from the developer)                 |
- |                                                                  |
- | 6. MCP Server Instructions   MCP servers          Dynamic        |
- |    (Instructions from connected MCP servers)                     |
- |                                                                  |
- | 7. Brand Reminders           brand.json          Brand controls  |
- |    (Periodic reminders injected as system-reminder blocks)       |
- |                                                                  |
- | 8. Context Reminders         Runtime             Dynamic        |
- |    (Current date, environment, session state)                    |
- |                                                                  |
- +-----------------------------------------------------------------+
+ Assembly Order                 Source              Mutability        Cache Scope
+ +--------------------------------------------------------------------------------------------+
+ |                                                                                             |
+ | ── CACHEABLE PREFIX (Layers 1-3 frozen at session start) ──────────────────────────────      |
+ |                                                                                             |
+ | 1. Core System Prompt        @mimi/core          IMMUTABLE         Global (all users)       |
+ |    (Agent behavior, safety, tool instructions)                                              |
+ |    Includes brand.prepend + core + brand.append as single block.                            |
+ |    This section CANNOT be overridden or removed.               [cache_control: ephemeral]   |
+ |                                                                                             |
+ | 2. Tool Definitions          ToolRegistry        SESSION-FROZEN    Global (all users)       |
+ |    (JSON schemas for all registered tools, alphabetically sorted)                           |
+ |    MCP tools with defer_loading use lightweight stubs.                                      |
+ |    Tools are NEVER added/removed mid-session.                  [cache_control: ephemeral]   |
+ |                                                                                             |
+ | 3. Project Instructions      MIMI.md / CLAUDE.md User controls    Per-project              |
+ |    (Brand config + per-project instructions)                                                |
+ |    Sent as first user message, not in system prompt.           [cache_control: ephemeral]   |
+ |                                                                                             |
+ | ── DYNAMIC CONTENT (changes every turn) ───────────────────────────────────────────────      |
+ |                                                                                             |
+ | 4. Conversation Messages     SessionStore        Growing           Per-session              |
+ |    (User turns, assistant turns, tool results)                                              |
+ |    Previous turns cached via prefix matching.                  (no explicit cache control)  |
+ |                                                                                             |
+ | 5. System Reminders          Runtime             Per-turn          Uncached                 |
+ |    (Current date, env, git status, MCP instructions,                                        |
+ |     brand reminders, context reminders)                                                     |
+ |    Injected as <system-reminder> in latest user message.       (no cache control)           |
+ |                                                                                             |
+ +--------------------------------------------------------------------------------------------+
 ```
+
+**Critical invariants for cache safety:**
+- Brand prepend/append is baked into the core system prompt block (Layer 1), NOT as separate messages.
+- Tool definitions are frozen at session start and sorted deterministically.
+- Dynamic context (timestamps, env info, MCP server instructions) goes into system-reminder messages within the conversation (Layer 5), NEVER into the system prompt.
+- Plan mode toggling uses EnterPlanMode/ExitPlanMode tools with system-reminder injection, NOT by modifying the system prompt or tool list.
+
+See Section 2.4 for detailed cache architecture, breakpoint strategy, and anti-patterns.
 
 ### 6.2 Theme Override System
 
