@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useReducer } from 'react';
 import { Box, useApp, useInput } from 'ink';
+import { ErrorBoundary } from './ErrorBoundary.js';
 import { WelcomeBanner } from './WelcomeBanner.js';
 import { MessageBubble } from './MessageBubble.js';
 import { StreamingText } from './StreamingText.js';
@@ -222,6 +223,15 @@ export function MimiApp({
         }),
       'agent:processing': ({ processing }: { processing: boolean }) =>
         dispatch({ type: 'SET_PROCESSING', value: processing }),
+      'usage:update': ({ totalInputTokens, totalOutputTokens, totalCostUsd, cacheHitRate }: {
+        totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; cacheHitRate: number;
+      }) =>
+        dispatch({
+          type: 'UPDATE_USAGE',
+          tokenCount: totalInputTokens + totalOutputTokens,
+          costUsd: totalCostUsd,
+          cacheHitRate,
+        }),
     };
 
     for (const [event, handler] of Object.entries(handlers)) {
@@ -261,6 +271,7 @@ export function MimiApp({
   const inputActive = !state.isProcessing && !state.permissionRequest;
 
   return (
+    <ErrorBoundary>
     <Box flexDirection="column">
       {/* Welcome Banner — shown once at top */}
       {bannerText && (
@@ -345,5 +356,6 @@ export function MimiApp({
         placeholder={inputActive ? 'Type a message...' : undefined}
       />
     </Box>
+    </ErrorBoundary>
   );
 }

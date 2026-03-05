@@ -17,6 +17,8 @@ export interface EventMap {
   'agent:state_change': { from: string; to: string };
   'agent:turn_start': { turnIndex: number };
   'agent:turn_end': { turnIndex: number; tokenCount: number };
+  'agent:error': { error: Error };
+  'agent:processing': { processing: boolean };
 
   // Compaction events
   'compaction:start': { messageCount: number; tokenCount: number };
@@ -34,6 +36,13 @@ export interface EventMap {
 
   // Cache metrics
   'cache:metrics': { hitRate: number; readTokens: number; creationTokens: number };
+
+  // Usage tracking events
+  'usage:update': { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; cacheHitRate: number };
+
+  // MCP events
+  'mcp:connected': { serverName: string; toolCount: number };
+  'mcp:error': { serverName: string; error: string };
 
   // UI events
   'ui:render': { component: string };
