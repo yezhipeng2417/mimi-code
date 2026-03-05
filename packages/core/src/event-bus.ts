@@ -40,6 +40,10 @@ export interface EventMap {
   // Usage tracking events
   'usage:update': { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; cacheHitRate: number };
 
+  // MCP events
+  'mcp:connected': { serverName: string; toolCount: number };
+  'mcp:error': { serverName: string; error: string };
+
   // UI events
   'ui:render': { component: string };
   'ui:input': { type: string; value: string };

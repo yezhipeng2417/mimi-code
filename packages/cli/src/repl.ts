@@ -247,6 +247,14 @@ export class Repl {
       process.stdout.write(`\x1b[33m🔒 ${toolName} requires permission\x1b[0m\n`);
     });
 
+    // MCP connection status
+    eventBus.on('mcp:connected', ({ serverName, toolCount }) => {
+      process.stderr.write(`\x1b[90m✓ MCP ${serverName}: ${toolCount} tools\x1b[0m\n`);
+    });
+    eventBus.on('mcp:error', ({ serverName, error }) => {
+      process.stderr.write(`\x1b[31m✗ MCP ${serverName}: ${error}\x1b[0m\n`);
+    });
+
     // Usage summary
     eventBus.on('usage:update', ({ totalInputTokens, totalOutputTokens, totalCostUsd, cacheHitRate }) => {
       const total = totalInputTokens + totalOutputTokens;

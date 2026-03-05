@@ -130,8 +130,15 @@ export async function setupContainer(options: SetupOptions): Promise<SetupResult
   // Connect to MCP servers (parallel)
   const mcpResults = await mcpClient.connectAll();
 
-  // Register MCP tools in registry
+  // Register MCP tools and emit connection events
   for (const [serverName, tools] of mcpResults) {
+    const state = mcpClient.getServerStates().get(serverName);
+    if (state?.status === 'error') {
+      eventBus.emit('mcp:error', { serverName, error: state.error ?? 'Unknown error' });
+    } else if (tools.length > 0) {
+      eventBus.emit('mcp:connected', { serverName, toolCount: tools.length });
+    }
+
     const adapted = adaptMcpTools(mcpClient, serverName, tools);
     for (const tool of adapted) {
       toolRegistry.registerTool(tool as Parameters<typeof toolRegistry.registerTool>[0]);
