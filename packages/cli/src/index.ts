@@ -8,6 +8,7 @@ export { setupContainer } from './container-setup.js';
 export type { SetupOptions, SetupResult } from './container-setup.js';
 
 export { Repl } from './repl.js';
+export { InkRepl } from './ink-repl.js';
 
 export { AnthropicProvider } from './anthropic-provider.js';
 export type { AnthropicProviderConfig } from './anthropic-provider.js';

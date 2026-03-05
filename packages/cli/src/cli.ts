@@ -14,6 +14,7 @@
 import { Command } from 'commander';
 import { setupContainer } from './container-setup.js';
 import { Repl } from './repl.js';
+import { InkRepl } from './ink-repl.js';
 import { banner, bannerPlain, goodbye } from '@mimi/brand';
 
 const program = new Command();
@@ -29,6 +30,7 @@ program
   .option('--brand <path>', 'Path to brand.json')
   .option('--print', 'Print-only mode (no tool execution)')
   .option('--verbose', 'Verbose output')
+  .option('--no-ink', 'Disable Ink TUI (use plain readline REPL)')
   .action(async (prompt: string | undefined, options: {
     model?: string;
     maxTokens?: number;
@@ -36,6 +38,7 @@ program
     brand?: string;
     print?: boolean;
     verbose?: boolean;
+    ink?: boolean;
   }) => {
     try {
       const projectPath = process.cwd();
@@ -78,19 +81,29 @@ program
         setup.eventBus.dispose();
       } else {
         // Interactive REPL mode
-        const repl = new Repl(setup, resumeSessionId);
+        const useInk = options.ink !== false && process.stdout.isTTY && !process.env['NO_COLOR'];
 
-        // Handle graceful shutdown
-        process.on('SIGINT', () => {
-          process.stdout.write('\n');
-          repl.stop();
-        });
+        if (useInk) {
+          // Ink-based TUI
+          const inkRepl = new InkRepl(setup, resumeSessionId);
 
-        process.on('SIGTERM', () => {
-          repl.stop();
-        });
+          process.on('SIGINT', () => inkRepl.stop());
+          process.on('SIGTERM', () => inkRepl.stop());
 
-        await repl.start();
+          await inkRepl.start();
+        } else {
+          // Plain readline REPL (for pipes and non-TTY)
+          const repl = new Repl(setup, resumeSessionId);
+
+          process.on('SIGINT', () => {
+            process.stdout.write('\n');
+            repl.stop();
+          });
+
+          process.on('SIGTERM', () => repl.stop());
+
+          await repl.start();
+        }
 
         // Goodbye
         process.stdout.write(goodbye());
