@@ -25,6 +25,7 @@ export {
   getTodoList,
   createToolSearchTool,
   createAskUserTool,
+  createSpawnAgentTool,
   getBuiltinTools,
 } from './builtin/index.js';
 export type { AskUserCallback } from './builtin/index.js';

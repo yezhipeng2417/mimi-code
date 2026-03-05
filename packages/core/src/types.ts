@@ -239,6 +239,8 @@ export interface McpServerConfig {
   args?: string[];
   url?: string;
   env?: Record<string, string>;
+  /** HTTP headers for SSE transport (e.g., Authorization) */
+  headers?: Record<string, string>;
   disabled?: boolean;
   disabledTools?: string[];
 }

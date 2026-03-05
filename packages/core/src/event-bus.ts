@@ -20,7 +20,7 @@ export interface EventMap {
 
   // Compaction events
   'compaction:start': { messageCount: number; tokenCount: number };
-  'compaction:end': { removedMessages: number; savedTokens: number };
+  'compaction:end': { removedMessages: number; savedTokens: number; retainedAnchors?: number; newMessageCount?: number };
   'compaction:warning': { usage: number; threshold: number };
 
   // Session events

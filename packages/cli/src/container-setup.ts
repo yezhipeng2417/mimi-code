@@ -12,7 +12,7 @@ import {
   SessionStore,
 } from '@mimi/core';
 import type { MimiConfig } from '@mimi/core';
-import { ToolRegistry, ToolExecutor, getBuiltinTools, createToolSearchTool } from '@mimi/tools';
+import { ToolRegistry, ToolExecutor, getBuiltinTools, createToolSearchTool, createSpawnAgentTool, createAskUserTool } from '@mimi/tools';
 import { PermissionEngine } from '@mimi/permissions';
 import type { PermissionStore } from '@mimi/permissions';
 import { McpClient, adaptMcpTools } from '@mimi/mcp';
@@ -138,8 +138,7 @@ export async function setupContainer(options: SetupOptions): Promise<SetupResult
     }
   }
 
-  // Freeze tool registry
-  toolRegistry.freeze();
+  // Note: tool registry freeze is deferred until after orchestrator setup (SpawnAgent needs it)
 
   // ── 7. Hooks ──────────────────────────────────────────────────────
 
@@ -172,6 +171,19 @@ export async function setupContainer(options: SetupOptions): Promise<SetupResult
   // ── 9. Agent orchestrator ─────────────────────────────────────────
 
   const agentOrchestrator = new AgentOrchestrator(eventBus);
+
+  // Register factory-created tools and freeze registry
+  toolRegistry.registerTool(createSpawnAgentTool(agentOrchestrator));
+  toolRegistry.registerTool(createAskUserTool(async (questions) => {
+    // Default implementation: returns empty answers
+    // The REPL overrides this with actual user input handling
+    const answers: Record<string, string> = {};
+    for (const q of questions) {
+      answers[q.question] = q.options?.[0]?.label ?? '(no answer)';
+    }
+    return answers;
+  }));
+  toolRegistry.freeze();
 
   // ── 10. Prompt assembler ──────────────────────────────────────────
 
