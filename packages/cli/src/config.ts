@@ -43,6 +43,9 @@ export async function loadConfig(sources: ConfigSources = {}): Promise<MimiConfi
   if (sources.projectPath) {
     const projectConfig =
       (await tryLoadJson<Partial<MimiConfig>>(
+        path.join(sources.projectPath, '.mimi.json'),
+      )) ??
+      (await tryLoadJson<Partial<MimiConfig>>(
         path.join(sources.projectPath, '.mimi', 'config.json'),
       )) ??
       (await tryLoadJson<Partial<MimiConfig>>(
