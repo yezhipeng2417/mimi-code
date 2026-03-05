@@ -1,9 +1,14 @@
 /**
  * PermissionPrompt component — asks user for tool permission.
+ *
+ * Handles keyboard input:
+ *   y → Allow (one-time)
+ *   n → Deny
+ *   a → Always Allow (persist for session)
  */
 
 import React from 'react';
-import { Text, Box } from 'ink';
+import { Text, Box, useInput } from 'ink';
 import { defaultTheme } from '../theme.js';
 
 interface PermissionPromptProps {
@@ -17,10 +22,20 @@ interface PermissionPromptProps {
 export function PermissionPrompt({
   toolName,
   input,
-  onAllow: _onAllow,
-  onDeny: _onDeny,
-  onAlwaysAllow: _onAlwaysAllow,
+  onAllow,
+  onDeny,
+  onAlwaysAllow,
 }: PermissionPromptProps): React.ReactElement {
+  useInput((char, key) => {
+    if (key.escape || char === 'n' || char === 'N') {
+      onDeny();
+    } else if (char === 'y' || char === 'Y') {
+      onAllow();
+    } else if (char === 'a' || char === 'A') {
+      onAlwaysAllow();
+    }
+  });
+
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={defaultTheme.colors.warning} paddingX={1}>
       <Text color={defaultTheme.colors.warning} bold>
