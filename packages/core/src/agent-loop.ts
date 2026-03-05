@@ -83,6 +83,9 @@ export class AgentLoop {
       throw new Error(`Cannot start run: agent is in state ${this.state}`);
     }
 
+    // Reset turn counter for this run
+    this.turnCount = 0;
+
     // Add user message
     this.messages.push({
       role: 'user',
