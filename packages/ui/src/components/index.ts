@@ -14,4 +14,5 @@ export { DiffViewer } from './DiffViewer.js';
 export { WelcomeBanner } from './WelcomeBanner.js';
 export { TaskList } from './TaskList.js';
 export { MimiApp } from './MimiApp.js';
+export { ErrorBoundary } from './ErrorBoundary.js';
 export type { MimiAppProps, DisplayMessage, ToolCallInfo, PermissionRequest, AppState } from './MimiApp.js';
