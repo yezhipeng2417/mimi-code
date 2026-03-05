@@ -17,6 +17,8 @@ export interface EventMap {
   'agent:state_change': { from: string; to: string };
   'agent:turn_start': { turnIndex: number };
   'agent:turn_end': { turnIndex: number; tokenCount: number };
+  'agent:error': { error: Error };
+  'agent:processing': { processing: boolean };
 
   // Compaction events
   'compaction:start': { messageCount: number; tokenCount: number };

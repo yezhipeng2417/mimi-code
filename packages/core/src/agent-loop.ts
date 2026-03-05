@@ -377,6 +377,8 @@ export class AgentLoop {
       this.setState('IDLE');
       return newMessages;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.config.eventBus.emit('agent:error', { error: err });
       this.setState('IDLE');
       throw error;
     }
