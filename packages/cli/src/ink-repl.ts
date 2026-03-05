@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { render } from 'ink';
-import { AgentLoop, Tokens } from '@mimi/core';
+import { AgentLoop, Tokens, UsageTracker } from '@mimi/core';
 import type { LLMProvider, Message } from '@mimi/core';
 import type { PermissionPrompt } from '@mimi/core';
 import type { SetupResult } from './container-setup.js';
@@ -47,6 +47,9 @@ export class InkRepl {
 
   async start(): Promise<void> {
     this.initProvider();
+
+    // Start usage tracking (kept alive by eventBus subscription)
+    new UsageTracker(this.setup.eventBus, this.setup.config.model);
 
     const hasColor = process.stdout.isTTY && !process.env['NO_COLOR'];
     const bannerText = hasColor ? banner('0.1.0') : bannerPlain('0.1.0');

@@ -37,6 +37,9 @@ export interface EventMap {
   // Cache metrics
   'cache:metrics': { hitRate: number; readTokens: number; creationTokens: number };
 
+  // Usage tracking events
+  'usage:update': { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; cacheHitRate: number };
+
   // UI events
   'ui:render': { component: string };
   'ui:input': { type: string; value: string };

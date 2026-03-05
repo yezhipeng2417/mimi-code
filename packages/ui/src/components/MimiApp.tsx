@@ -223,6 +223,15 @@ export function MimiApp({
         }),
       'agent:processing': ({ processing }: { processing: boolean }) =>
         dispatch({ type: 'SET_PROCESSING', value: processing }),
+      'usage:update': ({ totalInputTokens, totalOutputTokens, totalCostUsd, cacheHitRate }: {
+        totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; cacheHitRate: number;
+      }) =>
+        dispatch({
+          type: 'UPDATE_USAGE',
+          tokenCount: totalInputTokens + totalOutputTokens,
+          costUsd: totalCostUsd,
+          cacheHitRate,
+        }),
     };
 
     for (const [event, handler] of Object.entries(handlers)) {

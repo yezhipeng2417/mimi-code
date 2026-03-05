@@ -5,7 +5,7 @@
  */
 
 import * as readline from 'node:readline';
-import { AgentLoop, Tokens } from '@mimi/core';
+import { AgentLoop, Tokens, UsageTracker } from '@mimi/core';
 import type { LLMProvider, Message } from '@mimi/core';
 import type { PermissionPrompt } from '@mimi/core';
 import type { SetupResult } from './container-setup.js';
@@ -53,6 +53,9 @@ export class Repl {
 
     // Initialize provider
     this.initProvider();
+
+    // Start usage tracking
+    new UsageTracker(this.setup.eventBus, this.setup.config.model);
 
     // Display welcome
     const welcome = this.setup.brand.welcomeMessage ?? `Welcome to ${this.setup.brand.name}!`;
@@ -242,6 +245,14 @@ export class Repl {
 
     eventBus.on('tool:permission', ({ toolName }) => {
       process.stdout.write(`\x1b[33m🔒 ${toolName} requires permission\x1b[0m\n`);
+    });
+
+    // Usage summary
+    eventBus.on('usage:update', ({ totalInputTokens, totalOutputTokens, totalCostUsd, cacheHitRate }) => {
+      const total = totalInputTokens + totalOutputTokens;
+      const tokenStr = total > 1000 ? `${(total / 1000).toFixed(1)}k` : String(total);
+      const cacheStr = cacheHitRate > 0 ? ` cache: ${(cacheHitRate * 100).toFixed(0)}%` : '';
+      process.stdout.write(`\x1b[90m${tokenStr} tokens · $${totalCostUsd.toFixed(4)}${cacheStr}\x1b[0m\n`);
     });
   }
 

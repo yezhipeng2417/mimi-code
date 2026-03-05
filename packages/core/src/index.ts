@@ -89,5 +89,9 @@ export { StreamNormalizer } from './provider.js';
 export { AgentLoop } from './agent-loop.js';
 export type { ToolExecutor, PermissionPrompt, HookRunnerLike, AgentLoopConfig } from './agent-loop.js';
 
+// Usage Tracker
+export { UsageTracker } from './usage-tracker.js';
+export type { ModelPricing } from './usage-tracker.js';
+
 // DI Tokens
 export { Tokens } from './tokens.js';
