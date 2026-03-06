@@ -4,7 +4,7 @@
 
 import type { Theme } from '../theme.js';
 
-/** Minimal dark theme for low-contrast terminals */
+/** Dark theme for dark terminal backgrounds */
 const darkTheme: Theme = {
   name: 'dark',
   colors: {
@@ -18,15 +18,23 @@ const darkTheme: Theme = {
     assistantText: '#E5E7EB',
     toolName: '#60A5FA',
     code: '#A7F3D0',
+    border: '#374151',
+    badge: '#4B5563',
+    accent2: '#C084FC',
   },
   symbols: {
     prompt: '❯',
-    spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-    success: '✓',
-    error: '✗',
-    warning: '⚠',
+    spinner: ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'],
+    success: '✔',
+    error: '✘',
+    warning: '▲',
     arrow: '→',
-    bullet: '•',
+    bullet: '·',
+    hrule: '─',
+    userIcon: '●',
+    assistantIcon: '◆',
+    toolRunning: '⚙',
+    vbar: '│',
   },
 };
 
@@ -44,15 +52,23 @@ const lightTheme: Theme = {
     assistantText: '#1F2937',
     toolName: '#2563EB',
     code: '#047857',
+    border: '#D1D5DB',
+    badge: '#E5E7EB',
+    accent2: '#F59E0B',
   },
   symbols: {
     prompt: '❯',
-    spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-    success: '✓',
-    error: '✗',
-    warning: '⚠',
+    spinner: ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'],
+    success: '✔',
+    error: '✘',
+    warning: '▲',
     arrow: '→',
-    bullet: '•',
+    bullet: '·',
+    hrule: '─',
+    userIcon: '●',
+    assistantIcon: '◆',
+    toolRunning: '⚙',
+    vbar: '│',
   },
 };
 
@@ -70,6 +86,9 @@ const monoTheme: Theme = {
     assistantText: '#FFFFFF',
     toolName: '#CCCCCC',
     code: '#FFFFFF',
+    border: '#444444',
+    badge: '#555555',
+    accent2: '#AAAAAA',
   },
   symbols: {
     prompt: '>',
@@ -79,6 +98,11 @@ const monoTheme: Theme = {
     warning: '!',
     arrow: '->',
     bullet: '*',
+    hrule: '-',
+    userIcon: '*',
+    assistantIcon: '#',
+    toolRunning: '@',
+    vbar: '|',
   },
 };
 

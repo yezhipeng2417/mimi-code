@@ -1,9 +1,12 @@
 /**
- * StreamingText component — renders text that streams in token by token.
+ * StreamingText — Renders assistant response with typing cursor.
+ *
+ * Shows the gold assistant accent while text streams in,
+ * with an animated block cursor at the end.
  */
 
 import React from 'react';
-import { Text } from 'ink';
+import { Text, Box } from 'ink';
 import { defaultTheme } from '../theme.js';
 
 interface StreamingTextProps {
@@ -16,9 +19,25 @@ export function StreamingText({
   isStreaming,
 }: StreamingTextProps): React.ReactElement {
   return (
-    <Text color={defaultTheme.colors.assistantText}>
-      {text}
-      {isStreaming ? <Text color={defaultTheme.colors.primary}>▌</Text> : null}
-    </Text>
+    <Box flexDirection="row">
+      {/* Left accent bar — gold for assistant */}
+      <Box marginRight={1}>
+        <Text color={defaultTheme.colors.primary}>{defaultTheme.symbols.vbar}</Text>
+      </Box>
+
+      {/* Text content */}
+      <Box flexDirection="column" flexGrow={1}>
+        {/* Role header */}
+        <Box>
+          <Text color={defaultTheme.colors.primary} bold>
+            {defaultTheme.symbols.assistantIcon} Mimi
+          </Text>
+        </Box>
+        <Text color={defaultTheme.colors.assistantText} wrap="wrap">
+          {text}
+          {isStreaming ? <Text color={defaultTheme.colors.accent2}>▊</Text> : null}
+        </Text>
+      </Box>
+    </Box>
   );
 }

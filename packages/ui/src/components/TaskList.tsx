@@ -1,5 +1,8 @@
 /**
- * TaskList — Displays the current todo list with status indicators.
+ * TaskList — Displays todo items with status icons and progress counter.
+ *
+ * Uses colored icons: ○ pending, ▸ in-progress, ✔ completed.
+ * Completed tasks are dimmed with strikethrough.
  */
 
 import React from 'react';
@@ -13,16 +16,14 @@ interface TaskItem {
 }
 
 interface TaskListProps {
-  /** List of tasks to display */
   tasks: TaskItem[];
-  /** Optional title */
   title?: string;
 }
 
 const STATUS_ICONS: Record<TaskItem['status'], { icon: string; color: string }> = {
   pending: { icon: '○', color: defaultTheme.colors.muted },
   in_progress: { icon: '▸', color: defaultTheme.colors.warning },
-  completed: { icon: '✓', color: defaultTheme.colors.success },
+  completed: { icon: '✔', color: defaultTheme.colors.success },
 };
 
 export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
@@ -30,22 +31,29 @@ export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
   const total = tasks.length;
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" marginY={1}>
+      {/* Title with progress */}
       {title && (
-        <Text bold>
-          {title} ({completed}/{total})
-        </Text>
+        <Box>
+          <Text bold>{title} </Text>
+          <Text color={completed === total ? defaultTheme.colors.success : defaultTheme.colors.muted}>
+            ({completed}/{total})
+          </Text>
+        </Box>
       )}
 
+      {/* Task items */}
       {tasks.map((task) => {
         const { icon, color } = STATUS_ICONS[task.status];
+        const isDone = task.status === 'completed';
+
         return (
           <Box key={task.id}>
-            <Text color={color}>{icon}</Text>
-            <Text> </Text>
+            <Text color={color}> {icon} </Text>
             <Text
-              strikethrough={task.status === 'completed'}
-              dimColor={task.status === 'completed'}
+              strikethrough={isDone}
+              dimColor={isDone}
+              color={isDone ? defaultTheme.colors.muted : defaultTheme.colors.assistantText}
             >
               {task.task}
             </Text>
