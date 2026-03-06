@@ -293,33 +293,26 @@ export class SessionStore {
       VALUES (?, ?, ?, ?, 'persistent', ?, ?)
       ON CONFLICT(project_path, tool_name, pattern) DO UPDATE
         SET decision = excluded.decision, created_at = excluded.created_at, expires_at = excluded.expires_at
-    `).run(projectPath, toolName, pattern ?? null, decision, Date.now(), expiresAt ?? null);
+    `).run(projectPath, toolName, pattern ?? '', decision, Date.now(), expiresAt ?? null);
   }
 
   getPermission(projectPath: string, toolName: string, pattern?: string): PermissionDecision | undefined {
+    const effectivePattern = pattern ?? '';
+
     const row = this.db.prepare(`
-      SELECT decision, source FROM permissions
-      WHERE project_path = ? AND tool_name = ? AND (pattern = ? OR pattern IS NULL)
-      ORDER BY pattern IS NULL ASC
+      SELECT decision, source, expires_at FROM permissions
+      WHERE project_path = ? AND tool_name = ? AND pattern = ?
       LIMIT 1
-    `).get(projectPath, toolName, pattern ?? null) as { decision: string; source: string } | undefined;
+    `).get(projectPath, toolName, effectivePattern) as { decision: string; source: string; expires_at: number | null } | undefined;
 
     if (!row) return undefined;
 
-    // Check expiration
-    const full = this.db.prepare(`
-      SELECT expires_at FROM permissions
-      WHERE project_path = ? AND tool_name = ? AND (pattern = ? OR pattern IS NULL)
-      ORDER BY pattern IS NULL ASC
-      LIMIT 1
-    `).get(projectPath, toolName, pattern ?? null) as { expires_at: number | null } | undefined;
-
-    if (full?.expires_at && full.expires_at < Date.now()) {
+    if (row.expires_at && row.expires_at < Date.now()) {
       // Expired — remove and return undefined
       this.db.prepare(`
         DELETE FROM permissions
-        WHERE project_path = ? AND tool_name = ? AND (pattern = ? OR pattern IS NULL) AND expires_at < ?
-      `).run(projectPath, toolName, pattern ?? null, Date.now());
+        WHERE project_path = ? AND tool_name = ? AND pattern = ? AND expires_at < ?
+      `).run(projectPath, toolName, effectivePattern, Date.now());
       return undefined;
     }
 
@@ -336,7 +329,7 @@ export class SessionStore {
   }
 
   clearPermissions(projectPath: string): void {
-    this.db.prepare('DELETE FROM permissions WHERE project_path = ?').run(projectPath);
+    this.db.prepare(`DELETE FROM permissions WHERE project_path = ?`).run(projectPath);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
