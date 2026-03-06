@@ -29,6 +29,12 @@ export interface Theme {
     toolName: string;
     /** Code/monospace text */
     code: string;
+    /** Divider/border color */
+    border: string;
+    /** Badge/label background */
+    badge: string;
+    /** Accent gradient end */
+    accent2: string;
   };
 
   symbols: {
@@ -46,36 +52,54 @@ export interface Theme {
     arrow: string;
     /** Bullet */
     bullet: string;
+    /** Horizontal rule character */
+    hrule: string;
+    /** User role icon */
+    userIcon: string;
+    /** Assistant role icon */
+    assistantIcon: string;
+    /** Tool running icon */
+    toolRunning: string;
+    /** Left border bar */
+    vbar: string;
   };
 }
 
 /**
- * Default Mimi theme — warm yellow tones for the parrot mascot.
+ * Default Mimi theme — warm golden tones with modern styling.
  */
 export const defaultTheme: Theme = {
   name: 'mimi',
 
   colors: {
-    primary: '#FFD700',      // Gold (parrot yellow)
-    secondary: '#4A9EFF',    // Blue
-    success: '#4ADE80',      // Green
-    warning: '#FBBF24',      // Amber
-    error: '#F87171',        // Red
-    muted: '#6B7280',        // Gray
-    userText: '#E5E7EB',     // Light gray
-    assistantText: '#F3F4F6', // White-ish
-    toolName: '#A78BFA',     // Purple
-    code: '#34D399',         // Emerald
+    primary: '#FFD700',       // Gold (parrot yellow)
+    secondary: '#79C0FF',     // Sky blue
+    success: '#7EE787',       // Soft green
+    warning: '#F0B72F',       // Warm amber
+    error: '#FF7B72',         // Soft red
+    muted: '#6E7681',         // Dimmed gray
+    userText: '#E6EDF3',      // Bright white-ish
+    assistantText: '#D2D9E0', // Soft white
+    toolName: '#D2A8FF',      // Lavender purple
+    code: '#A5D6FF',          // Light blue
+    border: '#30363D',        // Dark border
+    badge: '#484F58',         // Badge gray
+    accent2: '#FFA657',       // Orange accent
   },
 
   symbols: {
     prompt: '❯',
-    spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-    success: '✓',
-    error: '✗',
-    warning: '⚠',
+    spinner: ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'],
+    success: '✔',
+    error: '✘',
+    warning: '▲',
     arrow: '→',
-    bullet: '•',
+    bullet: '·',
+    hrule: '─',
+    userIcon: '●',
+    assistantIcon: '◆',
+    toolRunning: '⚙',
+    vbar: '│',
   },
 };
 

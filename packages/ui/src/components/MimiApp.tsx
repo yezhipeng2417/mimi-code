@@ -3,12 +3,12 @@
  *
  * Manages application state and renders the interactive TUI:
  *   - Welcome banner
- *   - Message history (user + assistant bubbles)
+ *   - Message history (user + assistant bubbles with accent bars)
  *   - Streaming assistant response
- *   - Tool call views
+ *   - Tool call views with colored borders
  *   - Permission prompts
- *   - Status bar
- *   - Input editor
+ *   - Status bar with metrics
+ *   - Input editor with fancy prompt
  */
 
 import React, { useState, useEffect, useReducer } from 'react';
@@ -128,7 +128,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         isProcessing: action.value,
-        // Clear tool calls when starting new processing
         ...(action.value ? { toolCalls: [] } : {}),
       };
 
@@ -151,21 +150,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // ─── Props ────────────────────────────────────────────────────────────────
 
 export interface MimiAppProps {
-  /** Banner text (ASCII art) */
   bannerText?: string;
-  /** Product name */
   productName: string;
-  /** Version string */
   version?: string;
-  /** Welcome message */
   welcomeMessage?: string;
-  /** Model name for status bar */
   model: string;
-  /** Called when user submits input */
   onSubmit: (text: string) => void;
-  /** Called when user quits (Ctrl+C twice) */
   onExit?: () => void;
-  /** EventBus to subscribe to stream/tool events */
   eventBus: {
     on(event: string, handler: (...args: unknown[]) => void): void;
     off(event: string, handler: (...args: unknown[]) => void): void;
@@ -245,7 +236,7 @@ export function MimiApp({
     };
   }, [eventBus]);
 
-  // Ctrl+C handling: first press cancels, second exits
+  // Ctrl+C: first press cancels, second exits
   useInput((_input, key) => {
     if (key.ctrl && _input === 'c') {
       if (ctrlCCount >= 1) {
@@ -253,14 +244,12 @@ export function MimiApp({
         exit();
       } else {
         setCtrlCCount((c) => c + 1);
-        // Reset after 2 seconds
         setTimeout(() => setCtrlCCount(0), 2000);
       }
     }
   });
 
   const handleSubmit = (text: string) => {
-    // Add user message to display
     dispatch({
       type: 'ADD_MESSAGE',
       message: { id: `user-${Date.now()}`, role: 'user', text },
@@ -272,90 +261,92 @@ export function MimiApp({
 
   return (
     <ErrorBoundary>
-    <Box flexDirection="column">
-      {/* Welcome Banner — shown once at top */}
-      {bannerText && (
-        <WelcomeBanner
-          bannerText={bannerText}
-          productName={productName}
-          version={version}
-          welcomeMessage={welcomeMessage}
+      <Box flexDirection="column" paddingX={1}>
+        {/* ── Welcome Banner ── */}
+        {bannerText && (
+          <WelcomeBanner
+            bannerText={bannerText}
+            productName={productName}
+            version={version}
+            welcomeMessage={welcomeMessage}
+          />
+        )}
+
+        {/* ── Message History ── */}
+        {state.messages.map((msg) => (
+          <MessageBubble key={msg.id} role={msg.role} text={msg.text} />
+        ))}
+
+        {/* ── Streaming Response ── */}
+        {state.isStreaming && (
+          <Box marginBottom={1}>
+            <StreamingText text={state.streamingText} isStreaming={true} />
+          </Box>
+        )}
+
+        {/* ── Tool Calls ── */}
+        {state.toolCalls.length > 0 && (
+          <Box flexDirection="column" marginBottom={1}>
+            {state.toolCalls.map((tc) => (
+              <Box key={tc.id} marginBottom={0}>
+                {tc.status === 'running' ? (
+                  <Spinner label={tc.toolName} />
+                ) : (
+                  <ToolCallView
+                    toolName={tc.toolName}
+                    input={tc.input}
+                    output={tc.output}
+                    isError={tc.isError}
+                    durationMs={tc.durationMs}
+                  />
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {/* ── Permission Prompt ── */}
+        {state.permissionRequest && (
+          <PermissionPrompt
+            toolName={state.permissionRequest.toolName}
+            input={state.permissionRequest.input}
+            onAllow={() => {
+              state.permissionRequest?.resolve({ allowed: true, persist: false });
+              dispatch({ type: 'PERMISSION_RESOLVE' });
+            }}
+            onDeny={() => {
+              state.permissionRequest?.resolve({ allowed: false, persist: false });
+              dispatch({ type: 'PERMISSION_RESOLVE' });
+            }}
+            onAlwaysAllow={() => {
+              state.permissionRequest?.resolve({ allowed: true, persist: true });
+              dispatch({ type: 'PERMISSION_RESOLVE' });
+            }}
+          />
+        )}
+
+        {/* ── Thinking Indicator ── */}
+        {state.isProcessing && !state.isStreaming && state.toolCalls.length === 0 && (
+          <Box marginBottom={1}>
+            <Spinner label="Thinking..." />
+          </Box>
+        )}
+
+        {/* ── Status Bar ── */}
+        <StatusBar
+          model={model}
+          tokenCount={state.tokenCount}
+          costUsd={state.costUsd}
+          cacheHitRate={state.cacheHitRate}
         />
-      )}
 
-      {/* Message History */}
-      {state.messages.map((msg) => (
-        <MessageBubble key={msg.id} role={msg.role} text={msg.text} />
-      ))}
-
-      {/* Streaming Response */}
-      {state.isStreaming && (
-        <Box flexDirection="column" marginBottom={1}>
-          <StreamingText text={state.streamingText} isStreaming={true} />
-        </Box>
-      )}
-
-      {/* Tool Calls */}
-      {state.toolCalls.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          {state.toolCalls.map((tc) => (
-            <Box key={tc.id}>
-              {tc.status === 'running' ? (
-                <Spinner label={tc.toolName} />
-              ) : (
-                <ToolCallView
-                  toolName={tc.toolName}
-                  input={tc.input}
-                  output={tc.output}
-                  isError={tc.isError}
-                  durationMs={tc.durationMs}
-                />
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {/* Permission Prompt */}
-      {state.permissionRequest && (
-        <PermissionPrompt
-          toolName={state.permissionRequest.toolName}
-          input={state.permissionRequest.input}
-          onAllow={() => {
-            state.permissionRequest?.resolve({ allowed: true, persist: false });
-            dispatch({ type: 'PERMISSION_RESOLVE' });
-          }}
-          onDeny={() => {
-            state.permissionRequest?.resolve({ allowed: false, persist: false });
-            dispatch({ type: 'PERMISSION_RESOLVE' });
-          }}
-          onAlwaysAllow={() => {
-            state.permissionRequest?.resolve({ allowed: true, persist: true });
-            dispatch({ type: 'PERMISSION_RESOLVE' });
-          }}
+        {/* ── Input Editor ── */}
+        <InputEditor
+          onSubmit={handleSubmit}
+          isActive={inputActive}
+          placeholder={inputActive ? 'Send a message...' : undefined}
         />
-      )}
-
-      {/* Processing indicator */}
-      {state.isProcessing && !state.isStreaming && state.toolCalls.length === 0 && (
-        <Spinner label="Thinking..." />
-      )}
-
-      {/* Status Bar */}
-      <StatusBar
-        model={model}
-        tokenCount={state.tokenCount}
-        costUsd={state.costUsd}
-        cacheHitRate={state.cacheHitRate}
-      />
-
-      {/* Input Editor */}
-      <InputEditor
-        onSubmit={handleSubmit}
-        isActive={inputActive}
-        placeholder={inputActive ? 'Type a message...' : undefined}
-      />
-    </Box>
+      </Box>
     </ErrorBoundary>
   );
 }

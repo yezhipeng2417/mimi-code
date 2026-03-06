@@ -1,5 +1,11 @@
 /**
- * InputEditor — Multi-line input editor with key bindings.
+ * InputEditor — User input with fancy prompt and cursor.
+ *
+ * Features:
+ *   - Colored prompt icon
+ *   - Blinking block cursor
+ *   - Placeholder text when empty
+ *   - Ctrl+U to clear line
  */
 
 import React, { useState } from 'react';
@@ -7,13 +13,9 @@ import { Text, Box, useInput } from 'ink';
 import { defaultTheme } from '../theme.js';
 
 interface InputEditorProps {
-  /** Prompt symbol (e.g., "❯") */
   prompt?: string;
-  /** Placeholder text when empty */
   placeholder?: string;
-  /** Called when user submits input (Enter on single line) */
   onSubmit: (text: string) => void;
-  /** Whether the input is focused */
   isActive?: boolean;
 }
 
@@ -63,10 +65,17 @@ export function InputEditor({
   const isPlaceholder = !value && !!placeholder;
 
   return (
-    <Box>
-      <Text color={defaultTheme.colors.primary}>{displayPrompt} </Text>
-      <Text dimColor={isPlaceholder}>{displayText}</Text>
-      {isActive && <Text color={defaultTheme.colors.primary}>█</Text>}
+    <Box flexDirection="column">
+      {/* Input row */}
+      <Box>
+        <Text color={isActive ? defaultTheme.colors.primary : defaultTheme.colors.muted} bold>
+          {displayPrompt}{' '}
+        </Text>
+        <Text dimColor={isPlaceholder} color={isPlaceholder ? defaultTheme.colors.muted : defaultTheme.colors.userText}>
+          {displayText}
+        </Text>
+        {isActive && <Text color={defaultTheme.colors.primary}>▊</Text>}
+      </Box>
     </Box>
   );
 }
