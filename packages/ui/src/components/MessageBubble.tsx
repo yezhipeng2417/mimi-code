@@ -1,5 +1,8 @@
 /**
- * MessageBubble component — renders a conversation message.
+ * MessageBubble — Renders a conversation message with role accent.
+ *
+ * User messages get a blue left-bar, assistant gets gold.
+ * Each message has a role icon + label header.
  */
 
 import React from 'react';
@@ -16,21 +19,37 @@ export function MessageBubble({
   text,
 }: MessageBubbleProps): React.ReactElement {
   const isUser = role === 'user';
-  const color = isUser
-    ? defaultTheme.colors.userText
-    : defaultTheme.colors.assistantText;
-
-  const label = isUser ? 'You' : 'Mimi';
-  const labelColor = isUser
+  const accentColor = isUser
     ? defaultTheme.colors.secondary
     : defaultTheme.colors.primary;
+  const textColor = isUser
+    ? defaultTheme.colors.userText
+    : defaultTheme.colors.assistantText;
+  const icon = isUser
+    ? defaultTheme.symbols.userIcon
+    : defaultTheme.symbols.assistantIcon;
+  const label = isUser ? 'You' : 'Mimi';
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Text color={labelColor} bold>
-        {label}
-      </Text>
-      <Text color={color}>{text}</Text>
+    <Box flexDirection="row" marginBottom={1}>
+      {/* Left accent bar */}
+      <Box flexDirection="column" marginRight={1}>
+        <Text color={accentColor}>{defaultTheme.symbols.vbar}</Text>
+      </Box>
+
+      {/* Content */}
+      <Box flexDirection="column" flexGrow={1}>
+        {/* Header: icon + role label */}
+        <Box>
+          <Text color={accentColor} bold>
+            {icon} {label}
+          </Text>
+        </Box>
+        {/* Message text */}
+        <Box marginTop={0}>
+          <Text color={textColor} wrap="wrap">{text}</Text>
+        </Box>
+      </Box>
     </Box>
   );
 }

@@ -1,9 +1,11 @@
 /**
- * Spinner component — animated loading indicator.
+ * Spinner — Animated loading indicator with parrot personality.
+ *
+ * Uses smooth braille-dot animation with optional label.
  */
 
 import React, { useState, useEffect } from 'react';
-import { Text } from 'ink';
+import { Text, Box } from 'ink';
 import { defaultTheme } from '../theme.js';
 
 interface SpinnerProps {
@@ -22,12 +24,15 @@ export function Spinner({ label, color }: SpinnerProps): React.ReactElement {
     return () => clearInterval(interval);
   }, [frames.length]);
 
-  const spinnerChar = frames[frame] ?? '⠋';
+  const spinnerChar = frames[frame] ?? '⣾';
+  const spinnerColor = color ?? defaultTheme.colors.primary;
 
   return (
-    <Text>
-      <Text color={color ?? defaultTheme.colors.primary}>{spinnerChar}</Text>
-      {label ? <Text> {label}</Text> : null}
-    </Text>
+    <Box>
+      <Text color={spinnerColor} bold>{spinnerChar}</Text>
+      {label ? (
+        <Text color={defaultTheme.colors.muted}> {label}</Text>
+      ) : null}
+    </Box>
   );
 }

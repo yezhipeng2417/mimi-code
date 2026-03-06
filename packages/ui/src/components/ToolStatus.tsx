@@ -1,5 +1,9 @@
 /**
- * ToolStatus component — shows tool execution state.
+ * ToolStatus — Shows tool execution state with accent coloring.
+ *
+ * Running → spinner + tool name
+ * Completed → green check + tool name + duration
+ * Error → red x + tool name
  */
 
 import React from 'react';
@@ -20,39 +24,43 @@ export function ToolStatus({
   summary,
   durationMs,
 }: ToolStatusProps): React.ReactElement {
-  const icon =
-    status === 'running'
-      ? null
-      : status === 'completed'
-        ? defaultTheme.symbols.success
-        : defaultTheme.symbols.error;
-
-  const iconColor =
+  const accentColor =
     status === 'completed'
       ? defaultTheme.colors.success
       : status === 'error'
         ? defaultTheme.colors.error
-        : undefined;
+        : defaultTheme.colors.primary;
 
-  const duration = durationMs ? ` (${(durationMs / 1000).toFixed(1)}s)` : '';
+  const icon =
+    status === 'completed'
+      ? defaultTheme.symbols.success
+      : status === 'error'
+        ? defaultTheme.symbols.error
+        : null;
+
+  const duration = durationMs ? `${(durationMs / 1000).toFixed(1)}s` : '';
 
   return (
     <Box>
+      {/* Left accent */}
+      <Text color={accentColor}>{defaultTheme.symbols.vbar} </Text>
+
+      {/* Icon or spinner */}
       {status === 'running' ? (
-        <Spinner label="" />
+        <Spinner color={accentColor} />
       ) : (
-        <Text color={iconColor}>{icon}</Text>
+        <Text color={accentColor}>{icon}</Text>
       )}
+
       <Text> </Text>
-      <Text color={defaultTheme.colors.toolName} bold>
-        {toolName}
-      </Text>
-      {summary ? (
+      <Text color={defaultTheme.colors.toolName} bold>{toolName}</Text>
+
+      {summary && (
         <Text color={defaultTheme.colors.muted}> {summary}</Text>
-      ) : null}
-      {duration ? (
-        <Text color={defaultTheme.colors.muted}>{duration}</Text>
-      ) : null}
+      )}
+      {duration && (
+        <Text color={defaultTheme.colors.border}> {duration}</Text>
+      )}
     </Box>
   );
 }

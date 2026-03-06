@@ -1,5 +1,8 @@
 /**
- * DiffViewer — Displays file diffs with color-coded additions/deletions.
+ * DiffViewer — Displays file diffs with color-coded lines and file header.
+ *
+ * Uses green/red for +/- lines, blue for @@ markers,
+ * with a bordered file path header.
  */
 
 import React from 'react';
@@ -7,11 +10,8 @@ import { Text, Box } from 'ink';
 import { defaultTheme } from '../theme.js';
 
 interface DiffViewerProps {
-  /** File path being diffed */
   filePath: string;
-  /** Diff lines (with +/- prefixes) */
   lines: string[];
-  /** Maximum lines to display */
   maxLines?: number;
 }
 
@@ -24,28 +24,43 @@ export function DiffViewer({
   const truncated = lines.length > maxLines;
 
   return (
-    <Box flexDirection="column">
-      <Text color={defaultTheme.colors.muted} bold>
-        {filePath}
-      </Text>
+    <Box flexDirection="column" marginY={1}>
+      {/* File header */}
+      <Box>
+        <Text color={defaultTheme.colors.border}>{defaultTheme.symbols.hrule}{defaultTheme.symbols.hrule} </Text>
+        <Text color={defaultTheme.colors.code} bold>{filePath}</Text>
+        <Text color={defaultTheme.colors.border}> {defaultTheme.symbols.hrule.repeat(Math.max(1, 40 - filePath.length))}</Text>
+      </Box>
 
+      {/* Diff lines */}
       {displayLines.map((line, i) => {
         let color = defaultTheme.colors.assistantText;
-        if (line.startsWith('+')) color = defaultTheme.colors.success;
-        else if (line.startsWith('-')) color = defaultTheme.colors.error;
-        else if (line.startsWith('@@')) color = defaultTheme.colors.secondary;
+        let prefix = ' ';
+        if (line.startsWith('+')) {
+          color = defaultTheme.colors.success;
+          prefix = '+';
+        } else if (line.startsWith('-')) {
+          color = defaultTheme.colors.error;
+          prefix = '-';
+        } else if (line.startsWith('@@')) {
+          color = defaultTheme.colors.secondary;
+          prefix = '@';
+        }
 
         return (
-          <Text key={i} color={color}>
-            {line}
-          </Text>
+          <Box key={i}>
+            <Text color={color} dimColor={prefix === ' '}>{line}</Text>
+          </Box>
         );
       })}
 
+      {/* Truncation notice */}
       {truncated && (
-        <Text color={defaultTheme.colors.muted}>
-          ... ({lines.length - maxLines} more lines)
-        </Text>
+        <Box>
+          <Text color={defaultTheme.colors.muted}>
+            {defaultTheme.symbols.bullet} {lines.length - maxLines} more lines
+          </Text>
+        </Box>
       )}
     </Box>
   );
