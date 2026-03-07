@@ -120,4 +120,74 @@ program
     }
   });
 
+// ── Doctor subcommand ──────────────────────────────────────────────────
+program
+  .command('doctor')
+  .description('Check system health and configuration')
+  .action(async () => {
+    const checks: Array<{ name: string; status: 'ok' | 'warn' | 'fail'; detail: string }> = [];
+
+    // Node version
+    const nodeVersion = process.version;
+    const major = parseInt(nodeVersion.slice(1).split('.')[0]!, 10);
+    checks.push({
+      name: 'Node.js',
+      status: major >= 18 ? 'ok' : 'fail',
+      detail: `${nodeVersion}${major < 18 ? ' (requires >= 18)' : ''}`,
+    });
+
+    // API key
+    const hasKey = !!process.env['ANTHROPIC_API_KEY'];
+    checks.push({
+      name: 'ANTHROPIC_API_KEY',
+      status: hasKey ? 'ok' : 'warn',
+      detail: hasKey ? 'Set' : 'Not set — AI features will be unavailable',
+    });
+
+    // Project config
+    const cwd = process.cwd();
+    const { loadConfig, loadProjectInstructions } = await import('./config.js');
+    const config = await loadConfig({ projectPath: cwd });
+    checks.push({
+      name: 'Config',
+      status: 'ok',
+      detail: `model=${config.model}, maxTokens=${config.maxTokens}`,
+    });
+
+    // Project instructions
+    const instructions = await loadProjectInstructions(cwd);
+    checks.push({
+      name: 'Project instructions',
+      status: instructions ? 'ok' : 'warn',
+      detail: instructions ? 'Found' : 'No MIMI.md or CLAUDE.md found',
+    });
+
+    // MCP servers
+    const { loadMcpServers } = await import('./config.js');
+    const mcpServers = await loadMcpServers(cwd);
+    const serverCount = Object.keys(mcpServers).length;
+    checks.push({
+      name: 'MCP servers',
+      status: 'ok',
+      detail: serverCount > 0 ? `${serverCount} configured` : 'None configured',
+    });
+
+    // Output
+    const icons = { ok: '\x1b[32m✔\x1b[0m', warn: '\x1b[33m▲\x1b[0m', fail: '\x1b[31m✘\x1b[0m' };
+
+    process.stdout.write('\n  Mimi Doctor\n\n');
+    for (const check of checks) {
+      process.stdout.write(`  ${icons[check.status]} ${check.name}: ${check.detail}\n`);
+    }
+
+    const hasFailure = checks.some((c) => c.status === 'fail');
+    process.stdout.write('\n');
+    if (hasFailure) {
+      process.stdout.write('  \x1b[31mSome checks failed. Fix the issues above.\x1b[0m\n\n');
+      process.exit(1);
+    } else {
+      process.stdout.write('  \x1b[32mAll checks passed.\x1b[0m\n\n');
+    }
+  });
+
 program.parse();
