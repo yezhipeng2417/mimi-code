@@ -260,6 +260,17 @@ export class InkRepl {
         this.messages = [];
         break;
 
+      case 'compact':
+        await this.handleCompact();
+        break;
+
+      case 'model':
+        if (args) {
+          this.setup.config.model = args;
+          this.initProvider();
+        }
+        break;
+
       default: {
         const result = this.setup.skillRunner.run(command, args || undefined);
         if (result) {
@@ -268,6 +279,34 @@ export class InkRepl {
         break;
       }
     }
+  }
+
+  private async handleCompact(): Promise<void> {
+    if (!this.provider || this.messages.length < 6) return;
+
+    const compactable = this.messages.filter((m) => !m.metadata?.anchor && !m.metadata?.compactionSummary);
+    const compactionReq = this.setup.promptAssembler.buildCompactionRequest(compactable, []);
+
+    let summaryText = '';
+    for await (const event of this.provider.createMessage(compactionReq.params)) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        summaryText += event.delta.text;
+      }
+    }
+
+    const anchors = this.messages.filter((m) => m.metadata?.anchor);
+    this.messages = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: `Previous conversation summary:\n${summaryText}` }],
+        metadata: { compactionSummary: true },
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Understood. I have the context from our previous conversation.' }],
+      },
+      ...anchors,
+    ];
   }
 
   /** Resolve any pending permission request (deny on cleanup). */

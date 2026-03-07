@@ -13,6 +13,10 @@ import { ToolBridge } from './tool-bridge.js';
 import { AnthropicProvider } from './anthropic-provider.js';
 import { promptIcon, promptIconPlain } from '@mimi/brand';
 
+export interface ReplOptions {
+  printOnly?: boolean;
+}
+
 export class Repl {
   private setup: SetupResult;
   private messages: Message[] = [];
@@ -21,8 +25,10 @@ export class Repl {
   private running = false;
   private provider: LLMProvider | null = null;
   private agentLoop: AgentLoop | null = null;
+  private printOnly: boolean;
 
-  constructor(setup: SetupResult, resumeSessionId?: string) {
+  constructor(setup: SetupResult, resumeSessionId?: string, options?: ReplOptions) {
+    this.printOnly = options?.printOnly ?? false;
     this.setup = setup;
 
     if (resumeSessionId) {
@@ -270,9 +276,14 @@ export class Repl {
       return;
     }
 
-    // Run agent loop
     try {
       process.stdout.write('\n');
+
+      if (this.printOnly) {
+        // Print-only mode: stream response without tool support
+        await this.handlePrintOnly(text);
+        return;
+      }
 
       // Create tool bridge
       const toolBridge = new ToolBridge({
@@ -332,6 +343,48 @@ export class Repl {
     }
   }
 
+  /**
+   * Print-only mode: send messages without tools, just stream the response.
+   */
+  private async handlePrintOnly(text: string): Promise<void> {
+    if (!this.provider) return;
+
+    // Add user message
+    this.messages.push({
+      role: 'user',
+      content: [{ type: 'text', text }],
+      metadata: { timestamp: Date.now() },
+    });
+
+    // Build params without tools
+    const assembled = this.setup.promptAssembler.build(this.messages, []);
+    const params = { ...assembled.params, tools: undefined };
+
+    // Stream response
+    let responseText = '';
+    for await (const event of this.provider.createMessage(params)) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        process.stdout.write(event.delta.text);
+        responseText += event.delta.text;
+      }
+      if (event.type === 'message_delta' && event.usage) {
+        this.setup.eventBus.emit('stream:stop', {
+          stopReason: event.stopReason,
+          usage: event.usage,
+        });
+      }
+    }
+
+    process.stdout.write('\n\n');
+
+    // Save assistant message
+    this.messages.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: responseText }],
+      metadata: { timestamp: Date.now() },
+    });
+  }
+
   private async handleSlashCommand(input: string): Promise<void> {
     const parts = input.slice(1).split(/\s+/);
     const command = parts[0]!;
@@ -361,12 +414,31 @@ export class Repl {
         process.stdout.write(`MCP Servers: ${mcpStates.size}\n`);
         process.stdout.write(`Messages: ${this.messages.length}\n`);
         process.stdout.write(`Session: ${this.sessionId}\n`);
+        if (this.printOnly) {
+          process.stdout.write('Mode: print-only (no tools)\n');
+        }
         if (this.provider) {
           process.stdout.write(`Provider: ${this.provider.name}\n`);
         } else {
           process.stdout.write('Provider: not connected\n');
         }
         process.stdout.write('\n');
+        break;
+      }
+
+      case 'compact':
+        await this.handleCompact();
+        break;
+
+      case 'model': {
+        if (args) {
+          this.setup.config.model = args;
+          // Reinitialize provider with the new model
+          this.initProvider();
+          process.stdout.write(`Model switched to: ${args}\n\n`);
+        } else {
+          process.stdout.write(`Current model: ${this.setup.config.model}\n\n`);
+        }
         break;
       }
 
@@ -384,13 +456,91 @@ export class Repl {
     }
   }
 
+  private async handleCompact(): Promise<void> {
+    if (!this.provider) {
+      process.stdout.write('Cannot compact: no provider connected.\n\n');
+      return;
+    }
+
+    const tokenCount = await this.provider.countTokens(this.messages);
+    process.stdout.write(`\x1b[90mCurrent context: ~${(tokenCount / 1000).toFixed(1)}k tokens, ${this.messages.length} messages\x1b[0m\n`);
+
+    if (this.messages.length < 6) {
+      process.stdout.write('Not enough messages to compact.\n\n');
+      return;
+    }
+
+    process.stdout.write('\x1b[90mCompacting...\x1b[0m\n');
+
+    // Create a temporary agent loop just for compaction
+    const toolBridge = new ToolBridge({
+      registry: this.setup.toolRegistry,
+      executor: this.setup.toolExecutor,
+      permissionEngine: this.setup.permissionEngine,
+      eventBus: this.setup.eventBus,
+      resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+      workingDirectory: process.cwd(),
+      sessionId: this.sessionId,
+    });
+
+    const permissionPrompt: PermissionPrompt = {
+      ask: async () => ({ allowed: false, persist: false }),
+    };
+
+    const tempLoop = new AgentLoop({
+      provider: this.provider,
+      assembler: this.setup.promptAssembler,
+      sessionStore: this.setup.sessionStore,
+      eventBus: this.setup.eventBus,
+      resourceManager: this.setup.container.resolve(Tokens.ResourceManager),
+      toolExecutor: toolBridge,
+      permissionPrompt,
+      hookRunner: this.setup.hookRunner,
+      sessionId: this.sessionId,
+      compactionThreshold: 0, // Force compaction
+    });
+    tempLoop.loadMessages(this.messages);
+
+    // The compact method is private, so we trigger it via a run with very low threshold
+    // Actually, let's just build a compaction request directly
+    const compactable = this.messages.filter((m) => !m.metadata?.anchor && !m.metadata?.compactionSummary);
+    const compactionReq = this.setup.promptAssembler.buildCompactionRequest(compactable, []);
+
+    let summaryText = '';
+    for await (const event of this.provider.createMessage(compactionReq.params)) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        summaryText += event.delta.text;
+      }
+    }
+
+    // Rebuild messages
+    const anchors = this.messages.filter((m) => m.metadata?.anchor);
+    this.messages = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: `Previous conversation summary:\n${summaryText}` }],
+        metadata: { compactionSummary: true },
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Understood. I have the context from our previous conversation.' }],
+      },
+      ...anchors,
+    ];
+
+    const newTokenCount = await this.provider.countTokens(this.messages);
+    process.stdout.write(`\x1b[32m✓ Compacted to ~${(newTokenCount / 1000).toFixed(1)}k tokens, ${this.messages.length} messages\x1b[0m\n\n`);
+  }
+
   private printHelp(): void {
     process.stdout.write(`
 Commands:
-  /help     Show this help
-  /quit     Exit the session
-  /clear    Clear conversation history
-  /status   Show session status
+  /help      Show this help
+  /quit      Exit the session
+  /clear     Clear conversation history
+  /status    Show session status
+  /compact   Compact conversation to save context
+  /model [m] Show or switch model
 
 Skills:
 `);
