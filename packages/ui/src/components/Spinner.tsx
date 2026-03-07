@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface SpinnerProps {
   label?: string;
@@ -14,8 +14,9 @@ interface SpinnerProps {
 }
 
 export function Spinner({ label, color }: SpinnerProps): React.ReactElement {
+  const theme = useTheme();
   const [frame, setFrame] = useState(0);
-  const frames = defaultTheme.symbols.spinner;
+  const frames = theme.symbols.spinner;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -25,13 +26,13 @@ export function Spinner({ label, color }: SpinnerProps): React.ReactElement {
   }, [frames.length]);
 
   const spinnerChar = frames[frame] ?? '⣾';
-  const spinnerColor = color ?? defaultTheme.colors.primary;
+  const spinnerColor = color ?? theme.colors.primary;
 
   return (
     <Box>
       <Text color={spinnerColor} bold>{spinnerChar}</Text>
       {label ? (
-        <Text color={defaultTheme.colors.muted}> {label}</Text>
+        <Text color={theme.colors.muted}> {label}</Text>
       ) : null}
     </Box>
   );
