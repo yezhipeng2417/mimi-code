@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface StatusBarProps {
   model: string;
@@ -22,6 +22,7 @@ export function StatusBar({
   costUsd,
   cacheHitRate,
 }: StatusBarProps): React.ReactElement {
+  const theme = useTheme();
   const tokenStr = tokenCount > 1000 ? `${(tokenCount / 1000).toFixed(1)}k` : String(tokenCount);
   const costStr = costUsd > 0 ? `$${costUsd.toFixed(4)}` : '$0.00';
   const cacheStr = cacheHitRate !== undefined
@@ -37,8 +38,8 @@ export function StatusBar({
     <Box flexDirection="column" marginTop={1}>
       {/* Divider line */}
       <Box>
-        <Text color={defaultTheme.colors.border}>
-          {defaultTheme.symbols.hrule.repeat(60)}
+        <Text color={theme.colors.border}>
+          {theme.symbols.hrule.repeat(60)}
         </Text>
       </Box>
 
@@ -46,22 +47,22 @@ export function StatusBar({
       <Box gap={1}>
         {/* Model badge */}
         <Text>
-          <Text color={defaultTheme.colors.primary} bold>{modelShort}</Text>
+          <Text color={theme.colors.primary} bold>{modelShort}</Text>
         </Text>
 
-        <Text color={defaultTheme.colors.border}>{defaultTheme.symbols.vbar}</Text>
+        <Text color={theme.colors.border}>{theme.symbols.vbar}</Text>
 
         {/* Tokens */}
         <Text>
-          <Text color={defaultTheme.colors.muted}>{tokenStr}</Text>
-          <Text color={defaultTheme.colors.border}> tok</Text>
+          <Text color={theme.colors.muted}>{tokenStr}</Text>
+          <Text color={theme.colors.border}> tok</Text>
         </Text>
 
-        <Text color={defaultTheme.colors.border}>{defaultTheme.symbols.vbar}</Text>
+        <Text color={theme.colors.border}>{theme.symbols.vbar}</Text>
 
         {/* Cost */}
         <Text>
-          <Text color={costUsd > 0.01 ? defaultTheme.colors.warning : defaultTheme.colors.muted}>
+          <Text color={costUsd > 0.01 ? theme.colors.warning : theme.colors.muted}>
             {costStr}
           </Text>
         </Text>
@@ -69,10 +70,10 @@ export function StatusBar({
         {/* Cache hit rate */}
         {cacheStr && (
           <>
-            <Text color={defaultTheme.colors.border}>{defaultTheme.symbols.vbar}</Text>
+            <Text color={theme.colors.border}>{theme.symbols.vbar}</Text>
             <Text>
-              <Text color={defaultTheme.colors.success}>⚡</Text>
-              <Text color={defaultTheme.colors.muted}>{cacheStr}</Text>
+              <Text color={theme.colors.success}>⚡</Text>
+              <Text color={theme.colors.muted}>{cacheStr}</Text>
             </Text>
           </>
         )}

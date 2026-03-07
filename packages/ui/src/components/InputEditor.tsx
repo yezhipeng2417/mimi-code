@@ -10,7 +10,7 @@
 
 import React, { useState } from 'react';
 import { Text, Box, useInput } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface InputEditorProps {
   prompt?: string;
@@ -25,6 +25,7 @@ export function InputEditor({
   onSubmit,
   isActive = true,
 }: InputEditorProps): React.ReactElement {
+  const theme = useTheme();
   const [value, setValue] = useState('');
 
   useInput(
@@ -60,7 +61,7 @@ export function InputEditor({
     { isActive },
   );
 
-  const displayPrompt = prompt ?? defaultTheme.symbols.prompt;
+  const displayPrompt = prompt ?? theme.symbols.prompt;
   const displayText = value || placeholder || '';
   const isPlaceholder = !value && !!placeholder;
 
@@ -68,13 +69,13 @@ export function InputEditor({
     <Box flexDirection="column">
       {/* Input row */}
       <Box>
-        <Text color={isActive ? defaultTheme.colors.primary : defaultTheme.colors.muted} bold>
+        <Text color={isActive ? theme.colors.primary : theme.colors.muted} bold>
           {displayPrompt}{' '}
         </Text>
-        <Text dimColor={isPlaceholder} color={isPlaceholder ? defaultTheme.colors.muted : defaultTheme.colors.userText}>
+        <Text dimColor={isPlaceholder} color={isPlaceholder ? theme.colors.muted : theme.colors.userText}>
           {displayText}
         </Text>
-        {isActive && <Text color={defaultTheme.colors.primary}>▊</Text>}
+        {isActive && <Text color={theme.colors.primary}>▊</Text>}
       </Box>
     </Box>
   );
