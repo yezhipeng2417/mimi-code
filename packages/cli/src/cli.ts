@@ -72,7 +72,7 @@ program
 
       if (prompt) {
         // One-shot mode
-        const repl = new Repl(setup, resumeSessionId);
+        const repl = new Repl(setup, resumeSessionId, { printOnly: options.print });
         await repl.handleOneShot(prompt);
 
         // Cleanup
@@ -93,7 +93,7 @@ program
           await inkRepl.start();
         } else {
           // Plain readline REPL (for pipes and non-TTY)
-          const repl = new Repl(setup, resumeSessionId);
+          const repl = new Repl(setup, resumeSessionId, { printOnly: options.print });
 
           process.on('SIGINT', () => {
             process.stdout.write('\n');
