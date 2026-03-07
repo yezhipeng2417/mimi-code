@@ -264,6 +264,10 @@ export class InkRepl {
         await this.handleCompact();
         break;
 
+      case 'sessions':
+        // Sessions listing is handled via events for Ink display
+        break;
+
       case 'model':
         if (args) {
           this.setup.config.model = args;
