@@ -430,6 +430,10 @@ export class Repl {
         await this.handleCompact();
         break;
 
+      case 'sessions':
+        this.listSessions();
+        break;
+
       case 'model': {
         if (args) {
           this.setup.config.model = args;
@@ -532,6 +536,26 @@ export class Repl {
     process.stdout.write(`\x1b[32m✓ Compacted to ~${(newTokenCount / 1000).toFixed(1)}k tokens, ${this.messages.length} messages\x1b[0m\n\n`);
   }
 
+  private listSessions(): void {
+    const sessions = this.setup.sessionStore.listSessions(process.cwd(), 10);
+    if (sessions.length === 0) {
+      process.stdout.write('No previous sessions.\n\n');
+      return;
+    }
+
+    process.stdout.write('\x1b[1mRecent Sessions:\x1b[0m\n');
+    for (const s of sessions) {
+      const date = new Date(s.updatedAt).toLocaleString();
+      const isCurrent = s.id === this.sessionId ? ' \x1b[33m(current)\x1b[0m' : '';
+      const statusIcon = s.status === 'active' ? '\x1b[32m●\x1b[0m' : '\x1b[90m○\x1b[0m';
+      const cost = s.costUsd > 0 ? ` · $${s.costUsd.toFixed(4)}` : '';
+      process.stdout.write(
+        `  ${statusIcon} ${s.id.slice(0, 8)} · ${s.title} · ${date}${cost}${isCurrent}\n`,
+      );
+    }
+    process.stdout.write('\nUse \x1b[1mmimi --continue\x1b[0m to resume the last session.\n\n');
+  }
+
   private printHelp(): void {
     process.stdout.write(`
 Commands:
@@ -539,6 +563,7 @@ Commands:
   /quit      Exit the session
   /clear     Clear conversation history
   /status    Show session status
+  /sessions  List recent sessions
   /compact   Compact conversation to save context
   /model [m] Show or switch model
 
