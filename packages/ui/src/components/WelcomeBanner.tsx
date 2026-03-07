@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface WelcomeBannerProps {
   bannerText: string;
@@ -23,6 +23,8 @@ export function WelcomeBanner({
   productName,
   welcomeMessage,
 }: WelcomeBannerProps): React.ReactElement {
+  const theme = useTheme();
+
   return (
     <Box flexDirection="column" marginBottom={1}>
       {/* ASCII art (already styled by @mimi/brand) */}
@@ -32,10 +34,10 @@ export function WelcomeBanner({
       {(productName || version) && (
         <Box marginLeft={4}>
           {productName && (
-            <Text color={defaultTheme.colors.primary} bold>{productName}</Text>
+            <Text color={theme.colors.primary} bold>{productName}</Text>
           )}
           {version && (
-            <Text color={defaultTheme.colors.muted}> v{version}</Text>
+            <Text color={theme.colors.muted}> v{version}</Text>
           )}
         </Box>
       )}
@@ -43,14 +45,14 @@ export function WelcomeBanner({
       {/* Welcome message */}
       {welcomeMessage && (
         <Box marginLeft={4} marginTop={1}>
-          <Text color={defaultTheme.colors.muted}>{welcomeMessage}</Text>
+          <Text color={theme.colors.muted}>{welcomeMessage}</Text>
         </Box>
       )}
 
       {/* Subtle hint */}
       <Box marginLeft={4} marginTop={0}>
-        <Text color={defaultTheme.colors.border}>
-          Type a message to get started {defaultTheme.symbols.bullet} /help for commands {defaultTheme.symbols.bullet} Ctrl+C twice to exit
+        <Text color={theme.colors.border}>
+          Type a message to get started {theme.symbols.bullet} /help for commands {theme.symbols.bullet} Ctrl+C twice to exit
         </Text>
       </Box>
     </Box>

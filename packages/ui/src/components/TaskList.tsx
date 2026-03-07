@@ -7,7 +7,8 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
+import type { Theme } from '../theme.js';
 
 interface TaskItem {
   id: string;
@@ -20,13 +21,16 @@ interface TaskListProps {
   title?: string;
 }
 
-const STATUS_ICONS: Record<TaskItem['status'], { icon: string; color: string }> = {
-  pending: { icon: '○', color: defaultTheme.colors.muted },
-  in_progress: { icon: '▸', color: defaultTheme.colors.warning },
-  completed: { icon: '✔', color: defaultTheme.colors.success },
-};
+function getStatusIcon(status: TaskItem['status'], theme: Theme): { icon: string; color: string } {
+  switch (status) {
+    case 'pending': return { icon: '○', color: theme.colors.muted };
+    case 'in_progress': return { icon: '▸', color: theme.colors.warning };
+    case 'completed': return { icon: '✔', color: theme.colors.success };
+  }
+}
 
 export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
+  const theme = useTheme();
   const completed = tasks.filter((t) => t.status === 'completed').length;
   const total = tasks.length;
 
@@ -36,7 +40,7 @@ export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
       {title && (
         <Box>
           <Text bold>{title} </Text>
-          <Text color={completed === total ? defaultTheme.colors.success : defaultTheme.colors.muted}>
+          <Text color={completed === total ? theme.colors.success : theme.colors.muted}>
             ({completed}/{total})
           </Text>
         </Box>
@@ -44,7 +48,7 @@ export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
 
       {/* Task items */}
       {tasks.map((task) => {
-        const { icon, color } = STATUS_ICONS[task.status];
+        const { icon, color } = getStatusIcon(task.status, theme);
         const isDone = task.status === 'completed';
 
         return (
@@ -53,7 +57,7 @@ export function TaskList({ tasks, title }: TaskListProps): React.ReactElement {
             <Text
               strikethrough={isDone}
               dimColor={isDone}
-              color={isDone ? defaultTheme.colors.muted : defaultTheme.colors.assistantText}
+              color={isDone ? theme.colors.muted : theme.colors.assistantText}
             >
               {task.task}
             </Text>

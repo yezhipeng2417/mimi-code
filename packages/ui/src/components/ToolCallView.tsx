@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface ToolCallViewProps {
   toolName: string;
@@ -26,10 +26,11 @@ export function ToolCallView({
   durationMs,
   defaultExpanded = false,
 }: ToolCallViewProps): React.ReactElement {
+  const theme = useTheme();
   const [expanded] = useState(defaultExpanded);
 
-  const icon = isError ? defaultTheme.symbols.error : defaultTheme.symbols.success;
-  const accentColor = isError ? defaultTheme.colors.error : defaultTheme.colors.success;
+  const icon = isError ? theme.symbols.error : theme.symbols.success;
+  const accentColor = isError ? theme.colors.error : theme.colors.success;
   const duration = durationMs !== undefined ? `${durationMs}ms` : '';
 
   // Extract a short summary from tool name
@@ -41,7 +42,7 @@ export function ToolCallView({
     <Box flexDirection="row">
       {/* Left accent bar */}
       <Box marginRight={1}>
-        <Text color={accentColor}>{defaultTheme.symbols.vbar}</Text>
+        <Text color={accentColor}>{theme.symbols.vbar}</Text>
       </Box>
 
       {/* Content */}
@@ -49,17 +50,17 @@ export function ToolCallView({
         {/* Header line */}
         <Box gap={1}>
           <Text color={accentColor}>{icon}</Text>
-          <Text color={defaultTheme.colors.toolName} bold>{shortName}</Text>
+          <Text color={theme.colors.toolName} bold>{shortName}</Text>
           {duration && (
-            <Text color={defaultTheme.colors.border}>{duration}</Text>
+            <Text color={theme.colors.border}>{duration}</Text>
           )}
         </Box>
 
         {/* Expanded details */}
         {expanded && input && (
           <Box marginLeft={2}>
-            <Text color={defaultTheme.colors.muted} wrap="truncate-end">
-              {defaultTheme.symbols.arrow} {input.slice(0, 200)}
+            <Text color={theme.colors.muted} wrap="truncate-end">
+              {theme.symbols.arrow} {input.slice(0, 200)}
             </Text>
           </Box>
         )}
@@ -67,7 +68,7 @@ export function ToolCallView({
         {expanded && output && (
           <Box marginLeft={2}>
             <Text
-              color={isError ? defaultTheme.colors.error : defaultTheme.colors.code}
+              color={isError ? theme.colors.error : theme.colors.code}
               wrap="truncate-end"
             >
               {output.slice(0, 500)}

@@ -13,6 +13,9 @@
 
 import React, { useState, useEffect, useReducer } from 'react';
 import { Box, useApp, useInput } from 'ink';
+import { ThemeProvider } from '../ThemeContext.js';
+import { defaultTheme } from '../theme.js';
+import type { Theme } from '../theme.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
 import { WelcomeBanner } from './WelcomeBanner.js';
 import { MessageBubble } from './MessageBubble.js';
@@ -155,6 +158,7 @@ export interface MimiAppProps {
   version?: string;
   welcomeMessage?: string;
   model: string;
+  theme?: Theme;
   onSubmit: (text: string) => void;
   onExit?: () => void;
   eventBus: {
@@ -171,10 +175,12 @@ export function MimiApp({
   version,
   welcomeMessage,
   model,
+  theme,
   onSubmit,
   onExit,
   eventBus,
 }: MimiAppProps): React.ReactElement {
+  const activeTheme = theme ?? defaultTheme;
   const { exit } = useApp();
   const [ctrlCCount, setCtrlCCount] = useState(0);
 
@@ -260,6 +266,7 @@ export function MimiApp({
   const inputActive = !state.isProcessing && !state.permissionRequest;
 
   return (
+    <ThemeProvider theme={activeTheme}>
     <ErrorBoundary>
       <Box flexDirection="column" paddingX={1}>
         {/* ── Welcome Banner ── */}
@@ -348,5 +355,6 @@ export function MimiApp({
         />
       </Box>
     </ErrorBoundary>
+    </ThemeProvider>
   );
 }

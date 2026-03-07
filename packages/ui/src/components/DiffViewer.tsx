@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface DiffViewerProps {
   filePath: string;
@@ -20,6 +20,7 @@ export function DiffViewer({
   lines,
   maxLines = 30,
 }: DiffViewerProps): React.ReactElement {
+  const theme = useTheme();
   const displayLines = lines.slice(0, maxLines);
   const truncated = lines.length > maxLines;
 
@@ -27,23 +28,23 @@ export function DiffViewer({
     <Box flexDirection="column" marginY={1}>
       {/* File header */}
       <Box>
-        <Text color={defaultTheme.colors.border}>{defaultTheme.symbols.hrule}{defaultTheme.symbols.hrule} </Text>
-        <Text color={defaultTheme.colors.code} bold>{filePath}</Text>
-        <Text color={defaultTheme.colors.border}> {defaultTheme.symbols.hrule.repeat(Math.max(1, 40 - filePath.length))}</Text>
+        <Text color={theme.colors.border}>{theme.symbols.hrule}{theme.symbols.hrule} </Text>
+        <Text color={theme.colors.code} bold>{filePath}</Text>
+        <Text color={theme.colors.border}> {theme.symbols.hrule.repeat(Math.max(1, 40 - filePath.length))}</Text>
       </Box>
 
       {/* Diff lines */}
       {displayLines.map((line, i) => {
-        let color = defaultTheme.colors.assistantText;
+        let color = theme.colors.assistantText;
         let prefix = ' ';
         if (line.startsWith('+')) {
-          color = defaultTheme.colors.success;
+          color = theme.colors.success;
           prefix = '+';
         } else if (line.startsWith('-')) {
-          color = defaultTheme.colors.error;
+          color = theme.colors.error;
           prefix = '-';
         } else if (line.startsWith('@@')) {
-          color = defaultTheme.colors.secondary;
+          color = theme.colors.secondary;
           prefix = '@';
         }
 
@@ -57,8 +58,8 @@ export function DiffViewer({
       {/* Truncation notice */}
       {truncated && (
         <Box>
-          <Text color={defaultTheme.colors.muted}>
-            {defaultTheme.symbols.bullet} {lines.length - maxLines} more lines
+          <Text color={theme.colors.muted}>
+            {theme.symbols.bullet} {lines.length - maxLines} more lines
           </Text>
         </Box>
       )}

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant';
@@ -18,23 +18,18 @@ export function MessageBubble({
   role,
   text,
 }: MessageBubbleProps): React.ReactElement {
+  const theme = useTheme();
   const isUser = role === 'user';
-  const accentColor = isUser
-    ? defaultTheme.colors.secondary
-    : defaultTheme.colors.primary;
-  const textColor = isUser
-    ? defaultTheme.colors.userText
-    : defaultTheme.colors.assistantText;
-  const icon = isUser
-    ? defaultTheme.symbols.userIcon
-    : defaultTheme.symbols.assistantIcon;
+  const accentColor = isUser ? theme.colors.secondary : theme.colors.primary;
+  const textColor = isUser ? theme.colors.userText : theme.colors.assistantText;
+  const icon = isUser ? theme.symbols.userIcon : theme.symbols.assistantIcon;
   const label = isUser ? 'You' : 'Mimi';
 
   return (
     <Box flexDirection="row" marginBottom={1}>
       {/* Left accent bar */}
       <Box flexDirection="column" marginRight={1}>
-        <Text color={accentColor}>{defaultTheme.symbols.vbar}</Text>
+        <Text color={accentColor}>{theme.symbols.vbar}</Text>
       </Box>
 
       {/* Content */}

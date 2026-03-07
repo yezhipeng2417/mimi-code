@@ -8,6 +8,9 @@
 export { defaultTheme, createTheme } from './theme.js';
 export type { Theme } from './theme.js';
 
+// Theme context
+export { ThemeProvider, useTheme } from './ThemeContext.js';
+
 // Theme system
 export { resolveTheme } from './themes/resolver.js';
 export { builtinThemes } from './themes/builtin.js';

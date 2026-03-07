@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { Text, Box } from 'ink';
-import { defaultTheme } from '../theme.js';
+import { useTheme } from '../ThemeContext.js';
 import { Spinner } from './Spinner.js';
 
 interface ToolStatusProps {
@@ -24,18 +24,19 @@ export function ToolStatus({
   summary,
   durationMs,
 }: ToolStatusProps): React.ReactElement {
+  const theme = useTheme();
   const accentColor =
     status === 'completed'
-      ? defaultTheme.colors.success
+      ? theme.colors.success
       : status === 'error'
-        ? defaultTheme.colors.error
-        : defaultTheme.colors.primary;
+        ? theme.colors.error
+        : theme.colors.primary;
 
   const icon =
     status === 'completed'
-      ? defaultTheme.symbols.success
+      ? theme.symbols.success
       : status === 'error'
-        ? defaultTheme.symbols.error
+        ? theme.symbols.error
         : null;
 
   const duration = durationMs ? `${(durationMs / 1000).toFixed(1)}s` : '';
@@ -43,7 +44,7 @@ export function ToolStatus({
   return (
     <Box>
       {/* Left accent */}
-      <Text color={accentColor}>{defaultTheme.symbols.vbar} </Text>
+      <Text color={accentColor}>{theme.symbols.vbar} </Text>
 
       {/* Icon or spinner */}
       {status === 'running' ? (
@@ -53,13 +54,13 @@ export function ToolStatus({
       )}
 
       <Text> </Text>
-      <Text color={defaultTheme.colors.toolName} bold>{toolName}</Text>
+      <Text color={theme.colors.toolName} bold>{toolName}</Text>
 
       {summary && (
-        <Text color={defaultTheme.colors.muted}> {summary}</Text>
+        <Text color={theme.colors.muted}> {summary}</Text>
       )}
       {duration && (
-        <Text color={defaultTheme.colors.border}> {duration}</Text>
+        <Text color={theme.colors.border}> {duration}</Text>
       )}
     </Box>
   );
